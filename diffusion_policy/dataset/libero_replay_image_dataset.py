@@ -29,6 +29,7 @@ from diffusion_policy.common.normalize_util import (
     array_to_stats,
 )
 from diffusion_policy.common.pose_util import axisangle2quat_batch
+from termcolor import cprint
 
 
 register_codecs()
@@ -147,6 +148,7 @@ class LiberoReplayImageDataset(BaseImageDataset):
         self.pad_before = pad_before
         self.pad_after = pad_after
         self.use_legacy_normalizer = use_legacy_normalizer
+        cprint(f"Number of training data: {self.train_mask.sum()}", "green", attrs=["bold"])
 
         self.language_emb_model = language_emb_model
 

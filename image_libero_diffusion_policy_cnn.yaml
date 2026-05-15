@@ -8,7 +8,7 @@ checkpoint:
     mode: max
     monitor_key: test_mean_score
 dataloader:
-  batch_size: 32
+  batch_size: 128
   num_workers: 8
   persistent_workers: false
   pin_memory: true
@@ -25,12 +25,12 @@ exp_name: default
 horizon: 32
 keypoint_visible_rate: 1.0
 logging:
-  group: null
+  group: ${name}
   id: null
   mode: online
-  name: ${now:%Y.%m.%d}_${now:%H.%M.%S}_train_diffusion_unet_hybrid_libero_image
+  name: ${name}_${training.seed}
   project: diffusion_policy_libero
-  resume: true
+  resume: false
   tags:
   - train_diffusion_unet_hybrid
   - libero_image
@@ -41,7 +41,7 @@ multi_run:
 n_action_steps: 15
 n_latency_steps: 0
 n_obs_steps: 2
-name: train_diffusion_unet_hybrid
+name: train_diffusion_unet_hybrid_libero_image
 obs_as_global_cond: true
 optimizer:
   _target_: torch.optim.AdamW
@@ -192,11 +192,11 @@ task:
     fps: 10
     max_steps: 500
     n_action_steps: 15
-    n_envs: 3
+    n_envs: 2
     n_obs_steps: 2
-    n_test: 2
+    n_test: 1
     n_test_vis: 0
-    n_train: 1
+    n_train: 0
     n_train_vis: 0
     past_action: false
     render_obs_key: agentview_image
@@ -270,8 +270,8 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 8000
-  resume: true
+  num_epochs: 200
+  resume: false
   rollout_every: 20
   sample_every: 10
   seed: 42
@@ -279,7 +279,7 @@ training:
   use_ema: true
   val_every: 1
 val_dataloader:
-  batch_size: 32
+  batch_size: 128
   num_workers: 8
   persistent_workers: false
   pin_memory: true

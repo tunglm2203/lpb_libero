@@ -1,6 +1,7 @@
 import glob
 import hydra
 import numpy as np
+from termcolor import cprint
 from diffusion_policy.env_runner.base_image_runner import BaseImageRunner
 
 
@@ -34,7 +35,7 @@ def load_env_runner(cfg, output_dir):
 def env_rollout(cfg, env_runners, policy):
     step_log = {}
     if "libero" in cfg.task.name:
-        print('this branch ', len(env_runners))
+        cprint(f"Evaluating in LIBERO: {len(env_runners)}", "green", attrs=["bold"])
         for env_runner in env_runners:
             runner_log = env_runner.run(policy)
             step_log.update(runner_log)
@@ -44,14 +45,16 @@ def env_rollout(cfg, env_runners, policy):
             all_test_mean_score = {
                 k: v for k, v in step_log.items() if "test/" in k and "_mean_score" in k
             }
-            step_log["test_mean_score"] = np.mean(list(all_test_mean_score.values()))
+            if len(all_test_mean_score) > 0:
+                step_log["test_mean_score"] = np.mean(list(all_test_mean_score.values()))
 
             all_train_mean_score = {
                 k: v
                 for k, v in step_log.items()
                 if "train/" in k and "_mean_score" in k
             }
-            step_log["train_mean_score"] = np.mean(list(all_train_mean_score.values()))
+            if len(all_train_mean_score) > 0:
+                step_log["train_mean_score"] = np.mean(list(all_train_mean_score.values()))
     else:
         env_runner = env_runners
         runner_log = env_runner.run(policy)
