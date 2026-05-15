@@ -13,13 +13,13 @@ from robosuite.utils.mjcf_utils import CustomMaterial
 
 import mujoco
 
-import libero.libero.envs.bddl_utils as BDDLUtils
-from libero.libero.envs.robots import *
-from libero.libero.envs.utils import *
-from libero.libero.envs.object_states import *
-from libero.libero.envs.objects import *
-from libero.libero.envs.regions import *
-from libero.libero.envs.arenas import *
+import diffusion_policy.env.libero.envs.bddl_utils as BDDLUtils
+from diffusion_policy.env.libero.envs.robots import *
+from diffusion_policy.env.libero.envs.utils import *
+from diffusion_policy.env.libero.envs.object_states import *
+from diffusion_policy.env.libero.envs.objects import *
+from diffusion_policy.env.libero.envs.regions import *
+from diffusion_policy.env.libero.envs.arenas import *
 import pdb
 
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
