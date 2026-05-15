@@ -34,8 +34,8 @@ import robomimic.utils.obs_utils as ObsUtils
 
 
 current_dir = os.getcwd()
-parent_dir = os.path.abspath(os.path.join(current_dir, ".."))
-libero_path = os.path.join(parent_dir, "LIBERO")
+parent_dir = os.path.abspath(current_dir)
+libero_path = os.path.join(parent_dir, "diffusion_policy/env")
 sys.path.append(libero_path)
 from libero.libero.envs.bddl_base_domain import TASK_MAPPING
 

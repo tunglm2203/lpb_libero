@@ -195,9 +195,9 @@ task:
     n_envs: 3
     n_obs_steps: 2
     n_test: 2
-    n_test_vis: 2
+    n_test_vis: 0
     n_train: 1
-    n_train_vis: 1
+    n_train_vis: 0
     past_action: false
     render_obs_key: agentview_image
     shape_meta:

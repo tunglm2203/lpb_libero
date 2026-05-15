@@ -1,3 +1,5 @@
+import sys
+sys.path.append('/mnt/workspace/vla_bench/lpb')
 import os
 from diffusion_policy.common.language_models import extract_text_features
 from dyn_model.models.language_encoder import LanguageEncoder
@@ -80,7 +82,8 @@ class Trainer:
                     project="dyn_model_debug",
                     config=wandb_dict,
                     id=wandb_run_id,
-                    resume="allow",
+                    # resume="allow",
+                    mode="disabled"
                 )
             else:
                 if 'tool_hang' in self.cfg.env.train_data_path:
@@ -97,7 +100,8 @@ class Trainer:
                     project=project_name,
                     config=wandb_dict,
                     id=wandb_run_id,
-                    resume="allow",
+                    # resume="allow",
+                    mode="disabled"
                 )
             OmegaConf.set_struct(cfg, False)
             cfg.wandb_run_id = self.wandb_run.id
