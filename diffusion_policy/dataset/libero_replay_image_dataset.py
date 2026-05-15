@@ -284,7 +284,8 @@ def _convert_robomimic_to_replay(
     rotation_transformer,
     n_workers=None,
     max_inflight_tasks=None,
-    language_emb_model=None
+    language_emb_model=None,
+    val_ratio=None
 ):
     if n_workers is None:
         n_workers = multiprocessing.cpu_count()
