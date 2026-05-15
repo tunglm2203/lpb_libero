@@ -285,7 +285,11 @@ class SequentialLiberoImageRunner(BaseImageRunner):
                 if "robot0_eef_quat" in obs_dict:
                     obs_dict["ee_ori"] = obs_dict.pop("robot0_eef_quat")
 
-                action_dict = policy.predict_action_dyn_guided(
+                # action_dict = policy.predict_action_dyn_guided(
+                #     obs_dict,
+                #     language_goal=[self.language_goal] * obs_dict["agentview_rgb"].size(0),
+                # )
+                action_dict = policy.predict_action(
                     obs_dict,
                     language_goal=[self.language_goal] * obs_dict["agentview_rgb"].size(0),
                 )

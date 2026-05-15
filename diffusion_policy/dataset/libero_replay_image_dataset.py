@@ -124,7 +124,7 @@ class LiberoReplayImageDataset(BaseImageDataset):
         self.data_aug = data_aug
 
         val_mask = get_val_mask(
-            n_episodes=replay_buffer.n_episodes, val_ratio=0.0, seed=seed
+            n_episodes=replay_buffer.n_episodes, val_ratio=val_ratio, seed=seed
         )
         train_mask = ~val_mask
 

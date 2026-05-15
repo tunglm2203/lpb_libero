@@ -77,8 +77,8 @@ class TrainDiffusionUnetHybridWorkspace(BaseWorkspace):
         normalizer = dataset.get_normalizer()
 
         # configure validation dataset
-        val_dataset = dataset.get_validation_dataset()
-        val_dataloader = DataLoader(val_dataset, **cfg.val_dataloader)
+        # val_dataset = dataset.get_validation_dataset()
+        # val_dataloader = DataLoader(val_dataset, **cfg.val_dataloader)
 
         self.model.set_normalizer(normalizer)
         if cfg.training.use_ema:
