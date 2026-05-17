@@ -139,7 +139,7 @@ def main(args):
         else:
             results[key] = value
 
-    results_path = os.path.join(output_dir, 'eval_results.json')
+    results_path = os.path.join(output_dir, f"eval_results_{args.seed}.json")
     with open(results_path, 'w') as f:
         json.dump(results, f, indent=2, sort_keys=True)
 
