@@ -77,7 +77,11 @@ def setup_noise_schedule(cfg, noise_scheduler, num_inference_steps=None):
 
 def main(args):
     checkpoint = args.checkpoint
-    output_dir = args.output_dir
+    if os.path.isfile(checkpoint):
+        exp_name = checkpoint.split("/")[-3]
+    else:
+        raise NotImplementedError
+    output_dir = os.path.join(args.output_dir, exp_name, args.dataset_name.replace(".hdf5", ""))
     seed = args.seed
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     # if os.path.exists(output_dir):
