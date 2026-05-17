@@ -4,3 +4,5 @@ __pycache__/
 logs/
 .idea/
 data/
+eval_logs/
+MUJOCO_LOG.TXT
