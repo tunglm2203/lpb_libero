@@ -5,6 +5,27 @@ from termcolor import cprint
 from diffusion_policy.env_runner.base_image_runner import BaseImageRunner
 
 
+def load_libero_env_runner(cfg, output_dir):
+    hdf5_files = glob.glob(cfg.env_runner.dataset_path + "/*.hdf5")
+    
+    # sort files
+    hdf5_files.sort()
+    
+
+    env_runners = []
+    for idx, file in enumerate(hdf5_files):
+        task_name = file.split("/")[-1].split(".")[0]
+        if idx <= 3:
+            continue
+
+        # configure env
+        env_runner: BaseImageRunner
+        env_runner = hydra.utils.instantiate(cfg.env_runner, task_dir=file, output_dir=output_dir)
+        assert isinstance(env_runner, BaseImageRunner)
+        env_runners.append((task_name, env_runner))
+
+    return env_runners
+
 def load_env_runner(cfg, output_dir):
     if "libero" in cfg.task.name:
         hdf5_files = glob.glob(cfg.task.dataset.dataset_path + "/*.hdf5")

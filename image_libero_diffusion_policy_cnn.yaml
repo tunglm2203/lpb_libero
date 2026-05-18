@@ -144,7 +144,7 @@ task:
   dataset:
     _target_: diffusion_policy.dataset.libero_replay_image_dataset.LiberoReplayImageDataset
     abs_action: true
-    dataset_path: data/libero/libero_10
+    dataset_path: data/libero_10/libero_10
     language_emb_model: clip
     horizon: 32
     n_obs_steps: 2
@@ -183,12 +183,12 @@ task:
           - 15
     use_cache: true
     val_ratio: 0.0
-  dataset_path: data/libero/libero_10
+  dataset_path: data/libero_10/libero_10
   env_runner:
     _target_: diffusion_policy.env_runner.libero_image_runner.LiberoImageRunner
     abs_action: true
     crf: 22
-    dataset_path: data/libero/libero_10
+    dataset_path: data/libero_10/libero_10
     fps: 10
     max_steps: 500
     n_action_steps: 15

@@ -95,8 +95,12 @@ class LiberoImageRunner(BaseImageRunner):
         abs_action=False,
         tqdm_interval_sec=5.0,
         n_envs=None,
+        collect_data=False,
+        return_intermediate_state=False
     ):
         super().__init__(output_dir)
+        self.collect_data = collect_data
+        self.return_intermediate_state = return_intermediate_state
 
         if n_envs is None:
             n_envs = n_train + n_test
@@ -107,7 +111,7 @@ class LiberoImageRunner(BaseImageRunner):
 
         # read from dataset
         env_meta = FileUtils.get_env_metadata_from_dataset(dataset_path)
-
+        
         rotation_transformer = None
         if abs_action:
             env_meta["env_kwargs"]["controller_configs"]["control_delta"] = False
@@ -137,7 +141,7 @@ class LiberoImageRunner(BaseImageRunner):
                         thread_count=1,
                     ),
                     file_path=None,
-                    steps_per_render=steps_per_render,
+                    steps_per_render=steps_per_render if not self.collect_data else 1,
                 ),
                 n_obs_steps=n_obs_steps,
                 n_action_steps=n_action_steps,
@@ -169,7 +173,7 @@ class LiberoImageRunner(BaseImageRunner):
                         thread_count=1,
                     ),
                     file_path=None,
-                    steps_per_render=steps_per_render,
+                    steps_per_render=steps_per_render if not self.collect_data else 1,
                 ),
                 n_obs_steps=n_obs_steps,
                 n_action_steps=n_action_steps,
@@ -197,9 +201,12 @@ class LiberoImageRunner(BaseImageRunner):
                     env.env.video_recoder.stop()
                     env.env.file_path = None
                     if enable_render:
-                        filename = pathlib.Path(output_dir).joinpath(
-                            "media", wv.util.generate_id() + ".mp4"
-                        )
+                        if self.collect_data:
+                            filename = pathlib.Path(output_dir).joinpath('media', f"episode_{seed - test_start_seed}.mp4")
+                        else:
+                            filename = pathlib.Path(output_dir).joinpath(
+                                "media", wv.util.generate_id() + ".mp4"
+                            )
                         filename.parent.mkdir(parents=False, exist_ok=True)
                         filename = str(filename)
                         env.env.file_path = filename
@@ -283,6 +290,14 @@ class LiberoImageRunner(BaseImageRunner):
         # allocate data
         all_video_paths = [None] * n_inits
         all_rewards = [None] * n_inits
+        all_successes = [None] * n_inits
+
+        if self.collect_data:
+            collect_observations = [[] for _ in range(n_inits)]
+            collect_actions = [[] for _ in range(n_inits)]
+            collect_rewards = [[] for _ in range(n_inits)]
+            collect_terminals = [[] for _ in range(n_inits)]
+            collect_successes = [[] for _ in range(n_inits)]
 
         print("env_runner: ", self.language_goal)
         for chunk_idx in range(n_chunks):
@@ -291,6 +306,7 @@ class LiberoImageRunner(BaseImageRunner):
             this_global_slice = slice(start, end)
             this_n_active_envs = end - start
             this_local_slice = slice(0, this_n_active_envs)
+        
 
             this_init_fns = self.env_init_fn_dills[this_global_slice]
             n_diff = n_envs - len(this_init_fns)
@@ -376,28 +392,49 @@ class LiberoImageRunner(BaseImageRunner):
                 if self.abs_action:
                     env_action = self.undo_transform_action(action)
 
-                obs, reward, done, info = env.step(env_action)
+                if self.return_intermediate_state:
+                    for a_idx in range(self.n_action_steps):
+                        single_step_action = env_action[:, a_idx:a_idx + 1, :]
+                        obs, reward, done, info = env.step(single_step_action)
+
+                        # Record data if in collect_data mode
+                        if self.collect_data:
+                            single_step_action_raw = action[:, a_idx:a_idx + 1, :]
+                            for i in range(n_envs):
+                                obs_each_env = {}
+                                for key in obs:
+                                    obs_each_env[key] = obs[key][i]
+                                collect_observations[chunk_idx * n_envs + i].append(obs_each_env)
+                                collect_actions[chunk_idx * n_envs + i].append(single_step_action_raw[i, 0, ...])
+                                collect_terminals[chunk_idx * n_envs + i].append(done[i])
+                else:
+                    obs, reward, done, i = env.step(env_action)
+
+                
 
                 for i in range(len(reward)):
                     if reward[i] == 1:
                         done[i] = True
-
                 done = np.all(done)
-
                 # past_action = action
                 past_action_list.append(action)
                 if len(past_action_list) > 2:
                     past_action_list.pop(0)
-
                 # update pbar
                 pbar.update(action.shape[1])
             pbar.close()
 
             # collect data for this round
             all_video_paths[this_global_slice] = env.render()[this_local_slice]
-            all_rewards[this_global_slice] = env.call("get_attr", "reward")[
-                this_local_slice
-            ]
+            all_rewards[this_global_slice] = env.call("get_attr", "reward")[this_local_slice]
+            all_successes[this_global_slice] = env.call("get_attr", "done")[this_local_slice]
+            if self.collect_data:
+                for i in range(n_envs):
+                    episode_reward = np.array(all_rewards[chunk_idx * n_envs + i])
+                    collect_rewards[chunk_idx * n_envs + i].extend(episode_reward)
+
+                    episode_success = np.array(all_successes[chunk_idx * n_envs + i])
+                    collect_successes[chunk_idx * n_envs + i].extend(episode_success)
 
         # clear out video buffer
         _ = env.reset()
@@ -432,7 +469,30 @@ class LiberoImageRunner(BaseImageRunner):
             value = np.mean(value)
             log_data[name] = value
 
-        return log_data
+        if self.collect_data:
+            final_observations, final_actions, final_rewards, final_terminals, final_successes = [], [], [], [], []
+
+            for i in range(n_inits):
+                idx = np.argmax(collect_terminals[i]) + 1  # Find that first done
+                final_observations.append(collect_observations[i][:idx + 1])  # include final obs of last action, thus +1
+                final_actions.append(collect_actions[i][:idx])
+                final_rewards.append(collect_rewards[i][:idx])
+                final_terminals.append(collect_terminals[i][:idx])
+                final_successes.append(collect_successes[i][:idx])
+
+                # final_infos.append(collect_infos[i][:idx + 1])  # include final obs of last action, thus +1
+
+            episode_data = {
+                'observations': final_observations,
+                'actions': final_actions,
+                'rewards': final_rewards,
+                'terminals': final_terminals,
+                'successes': final_successes,
+                # 'infos': final_infos,
+            }
+            return log_data, episode_data
+        else:
+            return log_data
 
     def undo_transform_action(self, action):
         raw_shape = action.shape
