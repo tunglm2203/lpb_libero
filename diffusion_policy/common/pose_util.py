@@ -136,3 +136,8 @@ def axisangle2quat_batch(vecs):
     quats[is_zero] = np.array([0.0, 0.0, 0.0, 1.0])
 
     return quats
+
+# import robosuite.utils.transform_utils as T
+
+# def quat2axisangle(vecs):
+#     return T.quat2axisangle(vecs)

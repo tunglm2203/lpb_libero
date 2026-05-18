@@ -1,0 +1,343 @@
+_target_: diffusion_policy.workspace.train_pbrl_diffusion_offline_workspace.PbrlDiffusionWorkspace
+gamma: 0.999 
+checkpoint_dir: null
+checkpoint:
+  save_last_ckpt: true
+  save_last_snapshot: false
+  topk:
+    format_str: epoch={epoch:04d}-test_mean_score={test_mean_score:.3f}.ckpt
+    k: 5
+    mode: max
+    monitor_key: test_mean_score
+dataloader:
+  batch_size: 128
+  num_workers: 8
+  persistent_workers: false
+  pin_memory: true
+  shuffle: true
+dataset_obs_steps: 2
+ema:
+  _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
+  inv_gamma: 1.0
+  max_value: 0.9999
+  min_value: 0.0
+  power: 0.75
+  update_after_step: 0
+exp_name: default
+horizon: 32
+keypoint_visible_rate: 1.0
+logging:
+  group: ${name}
+  id: null
+  mode: online
+  name: ${name}_${training.seed}
+  project: diffusion_policy_libero
+  resume: false
+  tags:
+  - train_diffusion_unet_hybrid
+  - libero_image
+  - default
+multi_run:
+  run_dir: data/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}_train_diffusion_unet_hybrid_libero_image
+  wandb_name_base: ${now:%Y-%m-%d}_${now:%H-%M-%S}_train_diffusion_unet_hybrid_libero_image
+n_action_steps: 15
+n_latency_steps: 0
+n_obs_steps: 2
+name: train_diffusion_unet_hybrid_libero_image
+obs_as_global_cond: true
+optimizer:
+  _target_: torch.optim.AdamW
+  betas:
+  - 0.95
+  - 0.999
+  eps: 1.0e-08
+  lr: 0.0001
+  weight_decay: 1.0e-06
+past_action_visible: false
+policy:
+  _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_policy.DiffusionUnetHybridImagePolicy
+  cond_predict_scale: true
+  crop_shape:
+  - 114
+  - 114
+  diffusion_step_embed_dim: 128
+  down_dims:
+  - 512
+  - 1024
+  - 2048
+  eval_fixed_crop: true
+  horizon: 32
+  kernel_size: 5
+  n_action_steps: 15
+  n_groups: 8
+  n_obs_steps: 2
+  noise_scheduler:
+    _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
+    beta_end: 0.02
+    beta_schedule: squaredcos_cap_v2
+    beta_start: 0.0001
+    clip_sample: true
+    num_train_timesteps: 100
+    prediction_type: epsilon
+    variance_type: fixed_small
+  num_inference_steps: 100
+  obs_as_global_cond: true
+  obs_encoder_group_norm: true
+  shape_meta:
+    action:
+      shape:
+      - 10
+    obs:
+      agentview_rgb:
+        shape:
+        - 3
+        - 128
+        - 128
+        type: rgb
+      # eye_in_hand_rgb:
+      #   shape:
+      #   - 3
+      #   - 128
+      #   - 128
+      #   type: rgb
+      ee_ori:
+        shape:
+        - 4
+      ee_pos:
+        shape:
+        - 3
+      joint_states:
+        shape:
+        - 7
+      language:
+        shape:
+        - 15
+  beta: 0.1
+  bias_reg: 0.25
+  bc_coef: 1.0
+  ignore_equal_pref: False
+  train_time_samples: 1
+shape_meta:
+  action:
+    shape:
+    - 10
+  obs:
+    agentview_rgb:
+      shape:
+      - 3
+      - 128
+      - 128
+      type: rgb
+    # eye_in_hand_rgb:
+    #   shape:
+    #   - 3
+    #   - 128
+    #   - 128
+    #   type: rgb
+    ee_ori:
+      shape:
+      - 4
+    ee_pos:
+      shape:
+      - 3
+    joint_states:
+      shape:
+      - 7
+    language:
+      shape:
+      - 15
+task:
+  abs_action: true
+  dataset:
+    _target_: diffusion_policy.dataset.libero_replay_image_dataset.LiberoReplayImageDataset
+    abs_action: true
+    dataset_path: data/libero_10/libero_10
+    language_emb_model: clip
+    horizon: 32
+    n_obs_steps: 2
+    pad_after: 7
+    pad_before: 1
+    rotation_rep: rotation_6d
+    seed: 42
+    shape_meta:
+      action:
+        shape:
+        - 10
+      obs:
+        agentview_rgb:
+          shape:
+          - 3
+          - 128
+          - 128
+          type: rgb
+        # eye_in_hand_rgb:
+        #   shape:
+        #   - 3
+        #   - 128
+        #   - 128
+        #   type: rgb
+        ee_ori:
+          shape:
+          - 4
+        ee_pos:
+          shape:
+          - 3
+        joint_states:
+          shape:
+          - 7
+        language:
+          shape:
+          - 15
+    use_cache: true
+    val_ratio: 0.0
+  dataset_path: data/libero_10/libero_10
+  env_runner:
+    _target_: diffusion_policy.env_runner.libero_image_runner.LiberoImageRunner
+    abs_action: true
+    crf: 22
+    dataset_path: data/libero_10/libero_10
+    fps: 10
+    max_steps: 500
+    n_action_steps: 15
+    n_envs: 2
+    n_obs_steps: 2
+    n_test: 1
+    n_test_vis: 0
+    n_train: 0
+    n_train_vis: 0
+    past_action: false
+    render_obs_key: agentview_image
+    shape_meta:
+      action:
+        shape:
+        - 10
+      obs:
+        agentview_image:
+          shape:
+          - 3
+          - 128
+          - 128
+          type: rgb
+        # robot0_eye_in_hand_image:
+        #   shape:
+        #   - 3
+        #   - 128
+        #   - 128
+        #   type: rgb
+        robot0_eef_quat:
+          shape:
+          - 4
+        robot0_eef_pos:
+          shape:
+          - 3
+        robot0_joint_pos:
+          shape:
+          - 7
+    test_start_seed: 100000
+    tqdm_interval_sec: 1.0
+    train_start_idx: 0
+  name: libero_image
+  shape_meta:
+    action:
+      shape:
+      - 10
+    obs:
+      agentview_rgb:
+        shape:
+        - 3
+        - 128
+        - 128
+        type: rgb
+      # eye_in_hand_rgb:
+      #   shape:
+      #   - 3
+      #   - 128
+      #   - 128
+      #   type: rgb
+      ee_ori:
+        shape:
+        - 4
+      ee_pos:
+        shape:
+        - 3
+      joint_states:
+        shape:
+        - 7
+      language:
+        shape:
+        - 15
+  task_name: libero
+  dense_reward: False
+  dataset_1:
+    _target_: diffusion_policy.dataset.libero_rollout_dataset.LiberoRolloutDataset
+    dataset_path: ${training.dataset_1_dir}
+    horizon: ${horizon}
+    pad_before: ${eval:'${n_obs_steps}-1+${n_latency_steps}'}
+    pad_after: ${eval:'${n_action_steps}-1'}
+    seed: 42
+    val_ratio: 0.02
+    dense_reward: ${task.dense_reward}
+    language_emb_model: clip
+    use_cache: true
+
+
+  dataset_2:
+    _target_: diffusion_policy.dataset.libero_rollout_dataset.LiberoRolloutDataset
+    dataset_path: ${training.dataset_2_dir}
+    horizon: ${horizon}
+    pad_before: ${eval:'${n_obs_steps}-1+${n_latency_steps}'}
+    pad_after: ${eval:'${n_action_steps}-1'}
+    seed: 42
+    val_ratio: 0.02
+    dense_reward: ${task.dense_reward}
+    language_emb_model: clip
+    use_cache: true
+
+
+  pref_dataset:
+    _target_: diffusion_policy.dataset.pbrl_lowdim_dataset.PbrlLowdimDataset
+    sequence_length: 100
+    val_ratio: 0
+    num_queries: 1000
+    gamma: ${gamma}
+    gpu_device: ${training.device}
+    dense_reward: ${task.dense_reward}
+
+task_name: libero_image
+training:
+  checkpoint_every: 10
+  debug: false
+  device: cuda:0
+  gradient_accumulate_every: 1
+  lr_scheduler: cosine
+  lr_warmup_steps: 500
+  max_train_steps: null
+  max_val_steps: null
+  num_epochs: 200
+  resume: false
+  rollout_every: 20
+  sample_every: 10
+  seed: 42
+  tqdm_interval_sec: 1.0
+  use_ema: true
+  val_every: 1
+
+
+  cpl_loss_type: 'cpl_kl'   # 'cpl'
+  use_bc: False
+  use_expert_data: False
+  dataset_1_dir: 'data/robomimic/datasets/lift/noraml/robomimic_data_0.5.h5'
+  dataset_2_dir: 'data/robomimic/datasets/lift/noraml/robomimic_data_0.5_2.h5'
+  preference_learning:
+    num_rounds: 1
+    reverse_ratio: 0.0 # 0.2
+    reverse_rate: 0.0 # 0.5
+    reverse_freq: 1
+    equal_threshold: 0.05
+
+val_dataloader:
+  batch_size: 128
+  num_workers: 8
+  persistent_workers: false
+  pin_memory: true
+  shuffle: false
