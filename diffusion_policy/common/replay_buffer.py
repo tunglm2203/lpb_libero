@@ -527,13 +527,24 @@ class ReplayBuffer:
     def extend(self, data):
         self.add_episode(data)
 
-    def get_episode(self, idx, copy=False):
+    def get_episode(self, idx, keys=None, copy=False):
         idx = list(range(len(self.episode_ends)))[idx]
         start_idx = 0
         if idx > 0:
             start_idx = self.episode_ends[idx-1]
         end_idx = self.episode_ends[idx]
-        result = self.get_steps_slice(start_idx, end_idx, copy=copy)
+        # result = self.get_steps_slice(start_idx, end_idx, copy=copy)
+
+        if keys is None:
+            keys = self.keys()
+
+        result = dict()
+        for key in keys:
+            value = self.data[key]
+            x = value[start_idx:end_idx]
+            if copy and isinstance(value, np.ndarray):
+                x = x.copy()
+            result[key] = x
         return result
     
     def get_episode_slice(self, idx):

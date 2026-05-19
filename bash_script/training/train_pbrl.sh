@@ -18,16 +18,16 @@ for VAL_RATIO in 0.1; do
     for CPL_LOSS_TYPE in "sft"; do # "sft", "cpl", "cpl_kl"
       for BIAS_REG in 0.25; do      # 0.25 0.5 0.75 1
         USE_EXPERT_DATA=False
-        DENSE_REWARD=True
-        NUM_QUERIES=1000
+        DENSE_REWARD=False
+        NUM_QUERIES=100
         USE_BC=False
         BC_COEF=0
         IGNORE_EQUAL_PREF=False
-        SEG_SIZE=150
+        SEG_SIZE=60
 
         DATASET_PATH='data/libero_10/libero_10'   # ${task_name} will be replaced during run-time
-        DATASET_1="logs/collect_data/libero_10/datacollect_diffusion_unet_libero_10"
-        DATASET_2="logs/collect_data/libero_10/datacollect_diffusion_unet_libero_10"
+        DATASET_1="logs/collect_data_10eps/libero_10/datacollect_diffusion_unet_libero_10"
+        DATASET_2="logs/collect_data_10eps/libero_10/datacollect_diffusion_unet_libero_10"
 
         EXP_NAME="${CPL_LOSS_TYPE}_dpT_EData${USE_EXPERT_DATA}_Dense${DENSE_REWARD}_N${NUM_QUERIES}_L${SEG_SIZE}_bc${USE_BC}_${BC_COEF}_bias${BIAS_REG}_Equal${IGNORE_EQUAL_PREF}_1E2C_1ERate${TRAIN_RATIO}"
 

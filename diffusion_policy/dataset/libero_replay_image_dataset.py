@@ -198,7 +198,7 @@ class LiberoReplayImageDataset(BaseImageDataset):
                 this_normalizer = get_range_normalizer_from_stat(stat)
             elif key.endswith("joint_states"):
                 this_normalizer = get_range_normalizer_from_stat(stat)
-            elif key.endswith("language"):
+            elif key.endswith("language") or key == "rewards":
                 continue  ## skip
             else:
                 raise RuntimeError("unsupported")
@@ -323,6 +323,8 @@ def _convert_robomimic_to_replay(
 
     dataset_paths = glob.glob(dataset_path + "/*_demo.hdf5")
 
+    dataset_paths = ['/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/libero_10/libero_10/KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it_demo/KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it_demo.hdf5']
+
     for dataset_path_each in dataset_paths:
         language_goal = " ".join(dataset_path_each.split("/")[-1][:-10].split("_"))
         assert language_goal in language_goals_list, f"Language goal {language_goal} not found in language_goals"
@@ -388,12 +390,16 @@ def _convert_robomimic_to_replay(
             this_language_data = list()
         if key == "language":
             continue
+        if key == 'rewards':
+            data_key = 'rewards'
         this_data = list()
+
         for i in range(len(demos)):
             demo = demos[f"demo_{i}"]
             demo_key_data = demo[data_key][:].astype(np.float32)
+            if data_key == 'rewards':
+                demo_key_data = demo_key_data[:, None]
             if 'ori' in key:
-
                 demo_key_data = axisangle2quat_batch(demo_key_data)
                 assert demo_key_data.shape[-1] == 4, f"Expected quaternion shape, got {demo_key_data.shape}"
             this_data.append(demo_key_data)

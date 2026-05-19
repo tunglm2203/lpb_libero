@@ -117,35 +117,6 @@ policy:
   bc_coef: 1.0
   ignore_equal_pref: False
   train_time_samples: 1
-shape_meta:
-  action:
-    shape:
-    - 10
-  obs:
-    agentview_rgb:
-      shape:
-      - 3
-      - 128
-      - 128
-      type: rgb
-    # eye_in_hand_rgb:
-    #   shape:
-    #   - 3
-    #   - 128
-    #   - 128
-    #   type: rgb
-    ee_ori:
-      shape:
-      - 4
-    ee_pos:
-      shape:
-      - 3
-    joint_states:
-      shape:
-      - 7
-    language:
-      shape:
-      - 15
 task:
   abs_action: true
   dataset:
@@ -188,6 +159,9 @@ task:
         language:
           shape:
           - 15
+        rewards:
+          shape:
+          - 1
     use_cache: true
     val_ratio: 0.0
   dataset_path: data/libero_10/libero_10
@@ -295,10 +269,10 @@ task:
 
 
   pref_dataset:
-    _target_: diffusion_policy.dataset.pbrl_lowdim_dataset.PbrlLowdimDataset
+    _target_: diffusion_policy.dataset.pbrl_dataset.PbrlDataset
     sequence_length: 100
     val_ratio: 0
-    num_queries: 1000
+    num_queries: 5
     gamma: ${gamma}
     gpu_device: ${training.device}
     dense_reward: ${task.dense_reward}

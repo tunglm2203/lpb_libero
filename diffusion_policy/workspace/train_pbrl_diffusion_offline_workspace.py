@@ -12,7 +12,7 @@ import hydra
 import torch
 from omegaconf import OmegaConf
 import pathlib
-from torch.utils.data import DataLoader
+from torch.utils.data import ConcatDataset, DataLoader
 import copy
 import numpy as np
 import random
@@ -30,6 +30,8 @@ from diffusion_policy.common.checkpoint_util import TopKCheckpointManager
 from diffusion_policy.common.json_logger import JsonLogger
 from diffusion_policy.model.common.lr_scheduler import get_scheduler
 from diffusers.training_utils import EMAModel
+from diffusion_policy.model.common.normalizer import LinearNormalizer
+
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 
@@ -65,66 +67,73 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
         self.epoch = 0
 
     def prepare_preference_dataset(self, cfg):
-        # configure dataset
-        dataset_1: BaseImageDataset
-        dataset_1 = hydra.utils.instantiate(cfg.task.dataset)
-        # if cfg.training.use_expert_data:
-        #     dataset_1 = hydra.utils.instantiate(cfg.task.dataset, include_reward=True)
-        # else:
-        #     dataset_1 = hydra.utils.instantiate(cfg.task.dataset_1)
-        assert isinstance(dataset_1, BaseImageDataset)
 
-        # configure dataset
-        dataset_2: BaseImageDataset
-        if cfg.training.use_expert_data:
-            dataset_2 = hydra.utils.instantiate(cfg.task.dataset)
-        else:
-            dataset_2 = hydra.utils.instantiate(cfg.task.dataset_2, shape_meta=cfg.task.shape_meta)
-        assert isinstance(dataset_2, BaseImageDataset)
+        tasks_name = [name for name in os.listdir(cfg.task.dataset_path) if os.path.isdir(os.path.join(cfg.task.dataset_path, name))][-2:]
+        all_pref_datasets = {}
 
-        breakpoint()
+        for task_name in tasks_name:
+            print(f"Processing task: {task_name}")
+            # configure dataset
+            dataset_1: BaseImageDataset
+            dataset_1 = hydra.utils.instantiate(cfg.task.dataset, dataset_path=os.path.join(cfg.task.dataset_path, task_name))
 
-        pref_dataset: BaseImageDataset
-        pref_dataset = hydra.utils.instantiate(
-            cfg.task.pref_dataset, replay_buffer_1=dataset_1.replay_buffer, replay_buffer_2=dataset_2.replay_buffer,
-            max_episodes_dataset_1=int(dataset_1.replay_buffer.n_episodes * (1 - cfg.task.dataset.val_ratio)),
-            task_name=cfg.task["name"],
-        )
+            # if cfg.training.use_expert_data:
+            #     dataset_1 = hydra.utils.instantiate(cfg.task.dataset, include_reward=True)
+            # else:
+            #     dataset_1 = hydra.utils.instantiate(cfg.task.dataset_1)
+            assert isinstance(dataset_1, BaseImageDataset)
 
-        # cut online groups
-        votes_1, votes_2 = pref_dataset.pref_replay_buffer.meta['votes'], pref_dataset.pref_replay_buffer.meta['votes_2']
+            # configure dataset
+            dataset_2: BaseImageDataset
+            if cfg.training.use_expert_data:
+                breakpoint()
+                dataset_2 = hydra.utils.instantiate(cfg.task.dataset, dataset_path=os.path.join(cfg.task.dataset_path, task_name))
+            else:
+                dataset_2 = hydra.utils.instantiate(cfg.task.dataset_2, shape_meta=cfg.task.dataset.shape_meta, dataset_path=os.path.join(cfg.task.dataset_2.dataset_path, task_name))
+            assert isinstance(dataset_2, BaseImageDataset)
 
-        all_votes_1 = np.array([votes_1 for _ in range(cfg.training.preference_learning.num_rounds)])
-        all_votes_2 = np.array([votes_2 for _ in range(cfg.training.preference_learning.num_rounds)])
 
-        # add noise to votes
-        if cfg.training.preference_learning.reverse_rate > 0:
-            # select uncertain samples
-            var = (votes_1 * votes_2) / (((votes_1 + votes_2 + 1e-6) ** 2) * (votes_1 + votes_2 + 1))
-            mask = (votes_1 + votes_2) != 0
-            var_masked = var[mask]
-            var_flat = var_masked.flatten()
-            count = int(len(var_flat) * cfg.training.preference_learning.reverse_ratio)
-            threshold = np.partition(var_flat, -count)[-count]
-            masked_indices = np.where(var_flat >= threshold)[0]
-            original_indices = np.where(mask.flatten())[0]
-            indices = original_indices[masked_indices]
+            pref_dataset: BaseImageDataset
+            pref_dataset = hydra.utils.instantiate(
+                cfg.task.pref_dataset, replay_buffer_1=dataset_1.replay_buffer, replay_buffer_2=dataset_2.replay_buffer,
+                max_episodes_dataset_1=int(dataset_1.replay_buffer.n_episodes * (1 - cfg.task.dataset.val_ratio)),
+                task_name=task_name,
+            )
+            # cut online groups
+            votes_1, votes_2 = pref_dataset.pref_replay_buffer.meta['votes'], pref_dataset.pref_replay_buffer.meta['votes_2']
 
-            for local_epoch_idx in range(cfg.training.preference_learning.num_rounds):
-                if local_epoch_idx % cfg.training.preference_learning.reverse_freq == 0:
-                    X = stats.truncnorm(-3, 3, loc=cfg.training.preference_learning.reverse_rate, scale=cfg.training.preference_learning.reverse_rate / 3)
-                    noise_ratio = X.rvs(all_votes_1.shape[1])
-                    noise_ratio = noise_ratio.reshape(-1, 1)
+            all_votes_1 = np.array([votes_1 for _ in range(cfg.training.preference_learning.num_rounds)])
+            all_votes_2 = np.array([votes_2 for _ in range(cfg.training.preference_learning.num_rounds)])
 
-                    all_votes_1[local_epoch_idx][indices] = all_votes_1[local_epoch_idx][indices] + np.round(
-                        (all_votes_2[local_epoch_idx][indices] - all_votes_1[local_epoch_idx][indices]) * noise_ratio[indices])
-                    all_votes_2[local_epoch_idx][indices] = all_votes_2[local_epoch_idx][indices] + np.round(
-                        (all_votes_1[local_epoch_idx][indices] - all_votes_2[local_epoch_idx][indices]) * noise_ratio[indices])
+            # add noise to votes
+            if cfg.training.preference_learning.reverse_rate > 0:
+                # select uncertain samples
+                var = (votes_1 * votes_2) / (((votes_1 + votes_2 + 1e-6) ** 2) * (votes_1 + votes_2 + 1))
+                mask = (votes_1 + votes_2) != 0
+                var_masked = var[mask]
+                var_flat = var_masked.flatten()
+                count = int(len(var_flat) * cfg.training.preference_learning.reverse_ratio)
+                threshold = np.partition(var_flat, -count)[-count]
+                masked_indices = np.where(var_flat >= threshold)[0]
+                original_indices = np.where(mask.flatten())[0]
+                indices = original_indices[masked_indices]
 
-                    all_votes_1[local_epoch_idx] = np.maximum(all_votes_1[local_epoch_idx], 0)
-                    all_votes_2[local_epoch_idx] = np.maximum(all_votes_2[local_epoch_idx], 0)
+                for local_epoch_idx in range(cfg.training.preference_learning.num_rounds):
+                    if local_epoch_idx % cfg.training.preference_learning.reverse_freq == 0:
+                        X = stats.truncnorm(-3, 3, loc=cfg.training.preference_learning.reverse_rate, scale=cfg.training.preference_learning.reverse_rate / 3)
+                        noise_ratio = X.rvs(all_votes_1.shape[1])
+                        noise_ratio = noise_ratio.reshape(-1, 1)
 
-        return pref_dataset, all_votes_1, all_votes_2
+                        all_votes_1[local_epoch_idx][indices] = all_votes_1[local_epoch_idx][indices] + np.round(
+                            (all_votes_2[local_epoch_idx][indices] - all_votes_1[local_epoch_idx][indices]) * noise_ratio[indices])
+                        all_votes_2[local_epoch_idx][indices] = all_votes_2[local_epoch_idx][indices] + np.round(
+                            (all_votes_1[local_epoch_idx][indices] - all_votes_2[local_epoch_idx][indices]) * noise_ratio[indices])
+
+                        all_votes_1[local_epoch_idx] = np.maximum(all_votes_1[local_epoch_idx], 0)
+                        all_votes_2[local_epoch_idx] = np.maximum(all_votes_2[local_epoch_idx], 0)
+                        
+            all_pref_datasets[task_name] = [pref_dataset, all_votes_1, all_votes_2]
+        return all_pref_datasets
 
     def run(self):
         cfg = copy.deepcopy(self.cfg)
@@ -151,13 +160,21 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
         ref_policy.to(device)
 
         # configure dataset
-        # dataset: BaseImageDataset
-        # dataset = hydra.utils.instantiate(cfg.task.dataset)
-        # assert isinstance(dataset, BaseImageDataset)
-        # normalizer = dataset.get_normalizer()
-        pref_dataset, all_votes_1, all_votes_2 = self.prepare_preference_dataset(cfg)
+        dataset: BaseImageDataset
+        dataset = hydra.utils.instantiate(cfg.task.dataset)
+        assert isinstance(dataset, BaseImageDataset)
 
+        ### Load normalizer
+        normalizer_path = os.path.join(os.path.dirname(os.path.dirname(cfg.checkpoint_dir)), "normalizer.pth")
+        print("loading normalizer from", normalizer_path)
+        state_dict = torch.load(normalizer_path, map_location="cpu")
+        normalizer = LinearNormalizer()
+        normalizer.load_state_dict(state_dict)
         self.model.set_normalizer(normalizer)
+        ###
+
+        all_pref_datasets = self.prepare_preference_dataset(cfg)
+
         if cfg.training.use_ema:
             self.ema_model.set_normalizer(normalizer)
 
@@ -169,23 +186,20 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
                 model=self.ema_model)
 
         # configure env runner
-        env_runner: LiberoImageRunner
-        env_runner = hydra.utils.instantiate(
-            cfg.task.env_runner,
-            output_dir=self.output_dir)
-        assert isinstance(env_runner, LiberoImageRunner)
+        env_runners = load_libero_env_runner(cfg, self.output_dir)
 
-        # configure logging
-        wandb_run = wandb.init(
-            dir=str(self.output_dir),
-            config=OmegaConf.to_container(cfg, resolve=True),
-            **cfg.logging
-        )
-        wandb.config.update(
-            {
-                "output_dir": self.output_dir,
-            }
-        )
+
+        # # configure logging
+        # wandb_run = wandb.init(
+        #     dir=str(self.output_dir),
+        #     config=OmegaConf.to_container(cfg, resolve=True),
+        #     **cfg.logging
+        # )
+        # wandb.config.update(
+        #     {
+        #         "output_dir": self.output_dir,
+        #     }
+        # )
 
         # configure checkpoint
         topk_manager = TopKCheckpointManager(
@@ -209,15 +223,24 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
         for round_idx in range(cfg.training.preference_learning.num_rounds):
             print(f"Round {round_idx + 1} of {cfg.training.preference_learning.num_rounds} for online training")
 
-            local_votes_1 = np.array(all_votes_1[round_idx].T, dtype=np.float32).reshape(-1, 1)
-            local_votes_2 = np.array(all_votes_2[round_idx].T, dtype=np.float32).reshape(-1, 1)
+            all_pref_datasets_local_votes = []
 
-            pref_dataset.pref_replay_buffer.meta['votes'] = local_votes_1
-            pref_dataset.pref_replay_buffer.meta['votes_2'] = local_votes_2
-            pref_dataset.pref_replay_buffer.root['meta']['votes'] = local_votes_1
-            pref_dataset.pref_replay_buffer.root['meta']['votes_2'] = local_votes_2
+            for k,v in all_pref_datasets.items():
+                pref_dataset, all_votes_1, all_votes_2 = v
 
-            train_dataloader = DataLoader(pref_dataset, **cfg.dataloader)
+                local_votes_1 = np.array(all_votes_1[round_idx].T, dtype=np.float32).reshape(-1, 1)
+                local_votes_2 = np.array(all_votes_2[round_idx].T, dtype=np.float32).reshape(-1, 1)
+
+                pref_dataset.pref_replay_buffer.meta['votes'] = local_votes_1
+                pref_dataset.pref_replay_buffer.meta['votes_2'] = local_votes_2
+                pref_dataset.pref_replay_buffer.root['meta']['votes'] = local_votes_1
+                pref_dataset.pref_replay_buffer.root['meta']['votes_2'] = local_votes_2
+
+                all_pref_datasets_local_votes.append(pref_dataset)
+            
+            combined_dataset = ConcatDataset(all_pref_datasets_local_votes)
+
+            train_dataloader = DataLoader(combined_dataset, **cfg.dataloader)
             self.optimizer = self.model.get_optimizer(**cfg.optimizer)
 
             # Place lr_scheduler here to reset in each round
@@ -314,9 +337,10 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
 
                 # run rollout
                 if (self.epoch % cfg.training.rollout_every) == 0 or self.epoch == cfg.training.num_epochs - 1:
-                    runner_log = env_runner.run(policy)
-                    # log all
-                    step_log.update(runner_log)
+                    for task_name, env_runner in env_runners:
+                        runner_log = env_runner.run(policy)
+                        # log all
+                        step_log.update(runner_log)
 
                 # run diffusion sampling on a training batch
                 if (self.epoch % cfg.training.sample_every) == 0:

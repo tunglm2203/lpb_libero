@@ -84,6 +84,7 @@ class DatacollectDiffusionWorkspace(BaseWorkspace):
         cfg.env_runner['n_test'] = cfg.collecting.num_episodes
         cfg.env_runner['n_envs'] = min(100, cfg.collecting.num_episodes)
 
+
         # configure env runner
         # env_runner: LiberoImageRunner
         # env_runner = hydra.utils.instantiate(

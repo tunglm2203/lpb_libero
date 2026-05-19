@@ -106,7 +106,6 @@ class LiberoRolloutDataset(BaseImageDataset):
                         )
                     print("Loaded!")
         else:
-            breakpoint()
             replay_buffer = _convert_robomimic_to_replay(
                 store=zarr.MemoryStore(),
                 shape_meta=shape_meta,
@@ -290,7 +289,9 @@ mapping_keys = {
     'obs/joint_states': 'joint_pos_states',
     'actions': 'actions',
     'language': 'language',
-    'obs/agentview_rgb': 'agentview_image'
+    'obs/agentview_rgb': 'agentview_image',
+    'obs/rewards': 'successes',
+    # 'obs/successes': 'successes'
 }
 
 def _convert_robomimic_to_replay(
@@ -337,6 +338,7 @@ def _convert_robomimic_to_replay(
         raise NotImplementedError(f"Language model {language_emb_model} not implemented")
 
     dataset_paths = glob.glob(dataset_path + "/*_demo.hdf5")
+    # dataset_paths = ['/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/logs/collect_data/libero_10/datacollect_diffusion_unet_libero_10/KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it_demo/collect_KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it_demo.hdf5']
 
     for dataset_path_each in dataset_paths:
         tmp = dataset_path_each.replace('collect_', '')
@@ -352,6 +354,7 @@ def _convert_robomimic_to_replay(
         ) 
 
         demos = file["data"]
+
 
         for i in range(len(demos)):
             demo = demos[f"episode_{i}"]
@@ -391,6 +394,8 @@ def _convert_robomimic_to_replay(
         episode_end = prev_end + episode_length
         prev_end = episode_end
         episode_ends.append(episode_end)
+
+    # breakpoint()
     n_steps = episode_ends[-1]
     episode_starts = [0] + episode_ends[:-1]
     _ = meta_group.array(
@@ -411,8 +416,15 @@ def _convert_robomimic_to_replay(
             demo = demos[f"episode_{i}"]
             demo_key_data = demo[data_key][:].astype(np.float32)
 
-            if data_key not in ['actions', 'language']:
+            if data_key not in ['actions', 'language', 'successes']:
                 demo_key_data = demo_key_data[:,-1]
+            
+            if data_key == 'successes':
+                rewards = np.zeros(len(demo_key_data)).astype(np.uint8)
+                if demo_key_data[-1]:
+                    rewards[-1] = 1
+                demo_key_data = rewards[:, None]
+
             
             if 'ori' in key:
                 # demo_key_data = axisangle2quat_batch(demo_key_data)
