@@ -70,6 +70,7 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
     def prepare_preference_dataset(self, cfg):
 
         tasks_name = [name for name in os.listdir(cfg.task.dataset_path) if os.path.isdir(os.path.join(cfg.task.dataset_path, name))][-1:]
+        tasks_name = ['LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate_demo']
         all_pref_datasets = {}
 
         for task_name in tasks_name:

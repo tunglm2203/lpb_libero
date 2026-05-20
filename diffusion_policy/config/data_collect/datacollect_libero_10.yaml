@@ -71,6 +71,9 @@ task:
         robot0_joint_pos:
           shape:
           - 7
+        rewards:
+          shape:
+          - 1
     test_start_seed: 100000
     tqdm_interval_sec: 1.0
     train_start_idx: 0

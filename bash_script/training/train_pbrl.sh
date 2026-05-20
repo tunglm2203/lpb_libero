@@ -19,7 +19,7 @@ for VAL_RATIO in 0.1; do
       for BIAS_REG in 0.25; do      # 0.25 0.5 0.75 1
         USE_EXPERT_DATA=False
         DENSE_REWARD=False
-        NUM_QUERIES=500
+        NUM_QUERIES=3
         USE_BC=False
         BC_COEF=0
         IGNORE_EQUAL_PREF=False

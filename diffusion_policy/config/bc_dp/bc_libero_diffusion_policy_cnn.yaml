@@ -1,8 +1,9 @@
-_target_: diffusion_policy.workspace.train_pbrl_diffusion_offline_workspace.PbrlDiffusionWorkspace
+_target_: diffusion_policy.workspace.mixed_bc_train_diffusion_unet_hybrid_workspace.MixedBCTrainDiffusionUnetHybridWorkspace
 gamma: 0.999 
 
 obs_as_cond: True
 pred_action_steps_only: False
+include_reward: False
 
 checkpoint_dir: null
 checkpoint:
@@ -86,7 +87,6 @@ policy:
     variance_type: fixed_small
   num_inference_steps: 100
   obs_as_global_cond: true
-  obs_as_cond: true
   obs_encoder_group_norm: true
   shape_meta:
     action:
@@ -117,10 +117,7 @@ policy:
       language:
         shape:
         - 15
-  beta: 0.1
-  bias_reg: 0.25
-  bc_coef: 1.0
-  ignore_equal_pref: False
+
 task:
   abs_action: true
   dataset:
@@ -163,11 +160,53 @@ task:
         language:
           shape:
           - 15
-        rewards:
-          shape:
-          - 1
     use_cache: true
     val_ratio: 0.0
+  rollout_dataset:
+    _target_: diffusion_policy.dataset.libero_rollout_dataset.LiberoRolloutDataset
+    abs_action: true
+    dataset_path: data/libero_10/libero_10
+    language_emb_model: clip
+    horizon: 32
+    n_obs_steps: 2
+    pad_after: 7
+    pad_before: 1
+    rotation_rep: rotation_6d
+    seed: 42
+    shape_meta:
+      action:
+        shape:
+        - 10
+      obs:
+        agentview_rgb:
+          shape:
+          - 3
+          - 128
+          - 128
+          type: rgb
+        # eye_in_hand_rgb:
+        #   shape:
+        #   - 3
+        #   - 128
+        #   - 128
+        #   type: rgb
+        ee_ori:
+          shape:
+          - 4
+        ee_pos:
+          shape:
+          - 3
+        joint_states:
+          shape:
+          - 7
+        language:
+          shape:
+          - 15
+    use_cache: true
+    val_ratio: 0.0
+
+    mixed_bc: False
+    filtered_bc: False
   dataset_path: data/libero_10/libero_10
   env_runner:
     _target_: diffusion_policy.env_runner.libero_image_runner.LiberoImageRunner
@@ -245,41 +284,6 @@ task:
         shape:
         - 15
   task_name: libero
-  dense_reward: False
-  dataset_1:
-    _target_: diffusion_policy.dataset.libero_rollout_dataset.LiberoRolloutDataset
-    dataset_path: ${training.dataset_1_dir}
-    horizon: ${horizon}
-    pad_before: ${eval:'${n_obs_steps}-1+${n_latency_steps}'}
-    pad_after: ${eval:'${n_action_steps}-1'}
-    seed: 42
-    val_ratio: 0.02
-    dense_reward: ${task.dense_reward}
-    language_emb_model: clip
-    use_cache: true
-
-
-  dataset_2:
-    _target_: diffusion_policy.dataset.libero_rollout_dataset.LiberoRolloutDataset
-    dataset_path: ${training.dataset_2_dir}
-    horizon: ${horizon}
-    pad_before: ${eval:'${n_obs_steps}-1+${n_latency_steps}'}
-    pad_after: ${eval:'${n_action_steps}-1'}
-    seed: 42
-    val_ratio: 0.02
-    dense_reward: ${task.dense_reward}
-    language_emb_model: clip
-    use_cache: false
-
-
-  pref_dataset:
-    _target_: diffusion_policy.dataset.pbrl_dataset.PbrlDataset
-    sequence_length: 100
-    val_ratio: 0
-    num_queries: 5
-    gamma: ${gamma}
-    gpu_device: ${training.device}
-    dense_reward: ${task.dense_reward}
 
 task_name: libero_image
 training:
@@ -299,19 +303,6 @@ training:
   tqdm_interval_sec: 1.0
   use_ema: true
   val_every: 1
-
-
-  cpl_loss_type: 'normal'   # 'cpl'
-  use_bc: False
-  use_expert_data: False
-  dataset_1_dir: 'data/robomimic/datasets/lift/noraml/robomimic_data_0.5.h5'
-  dataset_2_dir: 'data/robomimic/datasets/lift/noraml/robomimic_data_0.5_2.h5'
-  preference_learning:
-    num_rounds: 1
-    reverse_ratio: 0.0 # 0.2
-    reverse_rate: 0.0 # 0.5
-    reverse_freq: 1
-    equal_threshold: 0.05
 
 val_dataloader:
   batch_size: 128

@@ -38,7 +38,7 @@ import torchvision.transforms as transforms
 from dyn_model.datasets.language_goals import language_goals_list
 
 
-class LiberoRolloutDataset(BaseImageDataset):
+class LiberoReplayImageDataset(BaseImageDataset):
     def __init__(
         self,
         shape_meta: dict,
@@ -55,12 +55,6 @@ class LiberoRolloutDataset(BaseImageDataset):
         val_ratio=0.0,
         language_emb_model=None,
         data_aug=False,
-        ## pbrl
-        dense_reward=False,
-        include_reward=False,
-        mixed_bc=False,
-        filtered_bc=False,
-        rollout_data=None
     ):
 
         rotation_transformer = RotationTransformer(
@@ -69,6 +63,7 @@ class LiberoRolloutDataset(BaseImageDataset):
 
         replay_buffer = None
         if use_cache:
+
             if language_emb_model == "clip":
                 cache_zarr_path = dataset_path + "_clip_both_views.zarr.zip"
             else:
@@ -125,7 +120,6 @@ class LiberoRolloutDataset(BaseImageDataset):
                 rgb_keys.append(key)
             elif type == "low_dim":
                 lowdim_keys.append(key)
-
 
         self.data_aug = data_aug
 
@@ -204,7 +198,7 @@ class LiberoRolloutDataset(BaseImageDataset):
                 this_normalizer = get_range_normalizer_from_stat(stat)
             elif key.endswith("joint_states"):
                 this_normalizer = get_range_normalizer_from_stat(stat)
-            elif key.endswith("language"):
+            elif key.endswith("language") or key == "rewards":
                 continue  ## skip
             else:
                 raise RuntimeError("unsupported")
@@ -283,16 +277,6 @@ def _convert_actions(raw_actions, abs_action, rotation_transformer):
         actions = raw_actions
     return actions
 
-mapping_keys = {
-    'obs/ee_ori': 'eef_quat_states',
-    'obs/ee_pos': 'eef_pos_states',
-    'obs/joint_states': 'joint_pos_states',
-    'actions': 'actions',
-    'language': 'language',
-    'obs/agentview_rgb': 'agentview_image',
-    'obs/rewards': 'successes',
-    # 'obs/successes': 'successes'
-}
 
 def _convert_robomimic_to_replay(
     store,
@@ -338,11 +322,11 @@ def _convert_robomimic_to_replay(
         raise NotImplementedError(f"Language model {language_emb_model} not implemented")
 
     dataset_paths = glob.glob(dataset_path + "/*_demo.hdf5")
-    # dataset_paths = ['/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/logs/collect_data/libero_10/datacollect_diffusion_unet_libero_10/KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it_demo/collect_KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it_demo.hdf5']
+
+    dataset_paths = ['/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/libero_10/libero_10/KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it_demo/KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it_demo.hdf5']
 
     for dataset_path_each in dataset_paths:
-        tmp = dataset_path_each.replace('collect_', '')
-        language_goal = " ".join(tmp.split("/")[-1][:-10].split("_"))
+        language_goal = " ".join(dataset_path_each.split("/")[-1][:-10].split("_"))
         assert language_goal in language_goals_list, f"Language goal {language_goal} not found in language_goals"
 
         print(f"Loading {dataset_path_each}")
@@ -352,14 +336,12 @@ def _convert_robomimic_to_replay(
         file_handles.append(
             file
         ) 
-
         demos = file["data"]
 
-
         for i in range(len(demos)):
-            demo = demos[f"episode_{i}"]
-            demos_all[f"episode_{count}"] = demo
-            language_all[f"episode_{count}"] = language_goal
+            demo = demos[f"demo_{i}"]
+            demos_all[f"demo_{count}"] = demo
+            language_all[f"demo_{count}"] = language_goal
             count += 1
     print("Total demos:", count)
 
@@ -369,7 +351,7 @@ def _convert_robomimic_to_replay(
     if language_emb_model == "clip":
         language_all_tokens = [
             tokenizer(
-                language_all[f"episode_{i}"],
+                language_all[f"demo_{i}"],
                 padding="max_length",
                 max_length=seq_max_len,
                 return_tensors="pt",
@@ -389,13 +371,11 @@ def _convert_robomimic_to_replay(
     episode_ends = list()
     prev_end = 0
     for i in range(len(demos)):
-        demo = demos[f"episode_{i}"]
+        demo = demos[f"demo_{i}"]
         episode_length = demo["actions"].shape[0]
         episode_end = prev_end + episode_length
         prev_end = episode_end
         episode_ends.append(episode_end)
-
-    # breakpoint()
     n_steps = episode_ends[-1]
     episode_starts = [0] + episode_ends[:-1]
     _ = meta_group.array(
@@ -410,24 +390,17 @@ def _convert_robomimic_to_replay(
             this_language_data = list()
         if key == "language":
             continue
+        if key == 'rewards':
+            data_key = 'rewards'
         this_data = list()
-        data_key = mapping_keys[data_key]
+
         for i in range(len(demos)):
-            demo = demos[f"episode_{i}"]
+            demo = demos[f"demo_{i}"]
             demo_key_data = demo[data_key][:].astype(np.float32)
-
-            if data_key not in ['actions', 'language', 'successes']:
-                demo_key_data = demo_key_data[:,-1]
-            
-            if data_key == 'successes':
-                rewards = np.zeros(len(demo_key_data)).astype(np.uint8)
-                if demo_key_data[-1]:
-                    rewards[-1] = 1
-                demo_key_data = rewards[:, None]
-
-            
+            if data_key == 'rewards':
+                demo_key_data = demo_key_data[:, None]
             if 'ori' in key:
-                # demo_key_data = axisangle2quat_batch(demo_key_data)
+                demo_key_data = axisangle2quat_batch(demo_key_data)
                 assert demo_key_data.shape[-1] == 4, f"Expected quaternion shape, got {demo_key_data.shape}"
             this_data.append(demo_key_data)
 
@@ -445,21 +418,24 @@ def _convert_robomimic_to_replay(
         this_data = np.concatenate(this_data, axis=0)
 
         if key == "action":
-            this_data = _convert_actions(raw_actions=this_data,abs_action=abs_action,rotation_transformer=rotation_transformer)
+            this_data = _convert_actions(
+                raw_actions=this_data,
+                abs_action=abs_action,
+                rotation_transformer=rotation_transformer,
+            )
 
-
-            assert this_data.shape == (n_steps,) + tuple(shape_meta["action"]["shape"]), "loi 1"
+            assert this_data.shape == (n_steps,) + tuple(shape_meta["action"]["shape"])
 
             this_language_data = np.concatenate(this_language_data, axis=0)
             if language_emb_model == "clip":
-                assert this_language_data.shape == (n_steps,) + tuple([2, seq_max_len]), "loi 2"
+                assert this_language_data.shape == (n_steps,) + tuple([2, seq_max_len])
             else:
                 raise NotImplementedError(f"Language model {language_emb_model} not implemented")
         else:
             print('key ', key, ' shape ', this_data.shape)
             assert this_data.shape == (n_steps,) + tuple(
                 shape_meta["obs"][key]["shape"]
-            ), "loi 3"
+            )
         _ = data_group.array(
             name=key,
             data=this_data,
@@ -481,7 +457,7 @@ def _convert_robomimic_to_replay(
 
     def img_copy(zarr_arr, zarr_idx, hdf5_arr, hdf5_idx):
         try:
-            zarr_arr[zarr_idx] = hdf5_arr[hdf5_idx].transpose(1,2,0)
+            zarr_arr[zarr_idx] = hdf5_arr[hdf5_idx]
             # make sure we can successfully decode
             _ = zarr_arr[zarr_idx]
             return True
@@ -496,7 +472,6 @@ def _convert_robomimic_to_replay(
             futures = set()
             for key in rgb_keys:
                 data_key = "obs/" + key
-                data_key = mapping_keys[data_key]
                 shape = tuple(shape_meta["obs"][key]["shape"])
                 c, h, w = shape
                 this_compressor = Jpeg2k(level=50)
@@ -509,9 +484,8 @@ def _convert_robomimic_to_replay(
                 )
 
                 for episode_idx in range(len(demos)):
-                    demo = demos[f"episode_{episode_idx}"]
-                    hdf5_arr = demo[data_key][:,-1]
-                    # hdf5_arr = demo[data_key].transpose(0,2,3,1)
+                    demo = demos[f"demo_{episode_idx}"]
+                    hdf5_arr = demo["obs"][key]
                     for hdf5_idx in range(hdf5_arr.shape[0]):
                         if len(futures) >= max_inflight_tasks:
                             # limit number of inflight tasks

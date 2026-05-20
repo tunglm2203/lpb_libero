@@ -78,11 +78,11 @@ class DatacollectDiffusionWorkspace(BaseWorkspace):
     def run(self):
         cfg = copy.deepcopy(self.cfg)
         run_dir = HydraConfig.get().run.dir
-        cfg.env_runner['n_train_vis'] = 0
-        cfg.env_runner['n_test_vis'] = 0
-        cfg.env_runner['n_train'] = 0
-        cfg.env_runner['n_test'] = cfg.collecting.num_episodes
-        cfg.env_runner['n_envs'] = min(100, cfg.collecting.num_episodes)
+        cfg.task.env_runner['n_train_vis'] = 0
+        cfg.task.env_runner['n_test_vis'] = 0
+        cfg.task.env_runner['n_train'] = 0
+        cfg.task.env_runner['n_test'] = cfg.collecting.num_episodes
+        cfg.task.env_runner['n_envs'] = min(100, cfg.collecting.num_episodes)
 
 
         # configure env runner
@@ -94,7 +94,7 @@ class DatacollectDiffusionWorkspace(BaseWorkspace):
         #     task_dir=cfg.env_runner.dataset_path,
         #     dataset_path=cfg.env_runner.dataset_path,
         # )
-        env_runners = load_libero_env_runner(cfg, self.output_dir)
+        env_runners = load_libero_env_runner(cfg, self.output_dir, tasks_name=['LIVING_ROOM_SCENE6'])
         # assert isinstance(env_runners, list[tuple[str, LiberoImageRunner]])
 
         # device transfer
@@ -109,6 +109,7 @@ class DatacollectDiffusionWorkspace(BaseWorkspace):
         for task_name, env_runner in env_runners:
             runner_log, all_episodes = env_runner.run(policy)
 
+            # print(all_episodes['actions'].shape) all_episodes['actions'][0][0].shape
             # Writing data to h5 file
             rollout_num_episodes = len(all_episodes['observations'])
             data_collect_file = os.path.join(run_dir, f"collect_{task_name}.hdf5")

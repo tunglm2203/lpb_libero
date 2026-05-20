@@ -5,7 +5,7 @@ from termcolor import cprint
 from diffusion_policy.env_runner.base_image_runner import BaseImageRunner
 import os
 
-def load_libero_env_runner(cfg, output_dir, tasks_name):
+def load_libero_env_runner(cfg, output_dir, tasks_name=None):
     # hdf5_files = glob.glob(cfg.env_runner.dataset_path + "/*.hdf5")
 
     hdf5_files = [
@@ -17,7 +17,8 @@ def load_libero_env_runner(cfg, output_dir, tasks_name):
     hdf5_files.sort()
 
     # filter by tasks_name
-    hdf5_files = [file for file in hdf5_files if any(task_name in file for task_name in tasks_name)]
+    if tasks_name:
+        hdf5_files = [file for file in hdf5_files if any(task_name in file for task_name in tasks_name)]
     
 
     env_runners = []

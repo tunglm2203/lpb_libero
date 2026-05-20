@@ -392,6 +392,7 @@ class LiberoImageRunner(BaseImageRunner):
                 if self.abs_action:
                     env_action = self.undo_transform_action(action)
 
+
                 if self.return_intermediate_state:
                     for a_idx in range(self.n_action_steps):
                         single_step_action = env_action[:, a_idx:a_idx + 1, :]
@@ -399,13 +400,12 @@ class LiberoImageRunner(BaseImageRunner):
 
                         # Record data if in collect_data mode
                         if self.collect_data:
-                            single_step_action_raw = action[:, a_idx:a_idx + 1, :]
                             for i in range(n_envs):
                                 obs_each_env = {}
                                 for key in obs:
                                     obs_each_env[key] = obs[key][i]
                                 collect_observations[chunk_idx * n_envs + i].append(obs_each_env)
-                                collect_actions[chunk_idx * n_envs + i].append(single_step_action_raw[i, 0, ...])
+                                collect_actions[chunk_idx * n_envs + i].append(single_step_action[i, 0, ...])
                                 collect_terminals[chunk_idx * n_envs + i].append(done[i])
                 else:
                     obs, reward, done, i = env.step(env_action)
