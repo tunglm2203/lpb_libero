@@ -11,6 +11,8 @@ from diffusion_policy.common.pref_replay_buffer import PrefReplayBuffer
 from diffusion_policy.common.pref_sampler import PrefSequenceSampler
 from typing import Optional, Dict
 from diffusion_policy.common.prior_utils_confidence import BetaNetwork
+from tqdm import tqdm
+
 
 def _load_or_create_indices(
     path: str,
@@ -113,13 +115,12 @@ class PbrlDataset(BaseImageDataset):
 
 
         # check if saved indices existing
-        import time
-        for i in range(num_queries):
-            print(f"=====================> PbrlDataset: Processing query {i}")
+        for i in tqdm(range(num_queries), desc="Processing queries"):
+            # print(f"=====================> PbrlDataset: Processing query {i}")
             ep_idx_1, ts_idx_1, ep_idx_2, ts_idx_2 = pair_indices[i]
 
-            episode_1 = replay_buffer_1.get_episode(int(ep_idx_1), keys=['agentview_rgb', 'action', 'rewards'], copy=False)
-            episode_2 = replay_buffer_2.get_episode(int(ep_idx_2), keys=['agentview_rgb', 'action', 'rewards'], copy=False)
+            episode_1 = replay_buffer_1.get_episode(int(ep_idx_1), copy=False)
+            episode_2 = replay_buffer_2.get_episode(int(ep_idx_2), copy=False)
 
 
             # Equal length processing for episode 1
@@ -159,12 +160,21 @@ class PbrlDataset(BaseImageDataset):
                 votes_2 = np.sum([(gamma ** t) * reward for t, reward in enumerate(episode_2['rewards'])])
 
             # Add preferred episode to the replay buffer
+
             self.pref_replay_buffer.add_pref_episode(
                 data={
                     'obs': episode_1['agentview_rgb'],          # First trajectory observations (shape T, obs_dim)
                     'action': episode_1['action'],     # First trajectory actions (shape T, action_dim)
                     'obs_2': episode_2['agentview_rgb'],         # Second trajectory observations
                     'action_2': episode_2['action'],    # Second trajectory actions
+                    'language': episode_1['language'],  # Language description
+                    'language_2': episode_2['language'],  # Language description
+                    'ee_pos': episode_1['ee_pos'],  # End-effector position
+                    'ee_pos_2': episode_2['ee_pos'],  # End-effector position
+                    'ee_ori': episode_1['ee_ori'],  # End-effector orientation
+                    'ee_ori_2': episode_2['ee_ori'],  # End-effector orientation
+                    'joint_states': episode_1['joint_states'],  # Joint states
+                    'joint_states_2': episode_2['joint_states'],  # Joint states
                 },
                 meta_data={
                     'votes': votes,                   # Vote for the first trajectory
@@ -181,7 +191,7 @@ class PbrlDataset(BaseImageDataset):
             val_ratio=val_ratio,
             seed=seed)
         train_mask = ~val_mask
-        #self.data = pref_dataset
+
         self.sampler = PrefSequenceSampler(
             replay_buffer=self.pref_replay_buffer,
             sequence_length=sequence_length,

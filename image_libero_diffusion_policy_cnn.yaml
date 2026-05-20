@@ -144,7 +144,7 @@ task:
   dataset:
     _target_: diffusion_policy.dataset.libero_replay_image_dataset.LiberoReplayImageDataset
     abs_action: true
-    dataset_path: data/libero_10/libero_10
+    dataset_path: /pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/libero_10/libero_10/KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it_demo
     language_emb_model: clip
     horizon: 32
     n_obs_steps: 2
@@ -183,12 +183,12 @@ task:
           - 15
     use_cache: true
     val_ratio: 0.0
-  dataset_path: data/libero_10/libero_10
+  dataset_path: /pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/libero_10/libero_10/KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it_demo
   env_runner:
     _target_: diffusion_policy.env_runner.libero_image_runner.LiberoImageRunner
     abs_action: true
     crf: 22
-    dataset_path: data/libero_10/libero_10
+    dataset_path: /pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero//pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/libero_10/libero_10/KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it_demo
     fps: 10
     max_steps: 500
     n_action_steps: 15

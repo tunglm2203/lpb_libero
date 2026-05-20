@@ -5,27 +5,28 @@ from termcolor import cprint
 from diffusion_policy.env_runner.base_image_runner import BaseImageRunner
 import os
 
-def load_libero_env_runner(cfg, output_dir):
+def load_libero_env_runner(cfg, output_dir, tasks_name):
     # hdf5_files = glob.glob(cfg.env_runner.dataset_path + "/*.hdf5")
 
     hdf5_files = [
-        os.path.join(cfg.env_runner.dataset_path, name) for name in os.listdir(cfg.env_runner.dataset_path)
-        if os.path.isdir(os.path.join(cfg.env_runner.dataset_path, name))
+        os.path.join(cfg.task.env_runner.dataset_path, name) for name in os.listdir(cfg.task.env_runner.dataset_path)
+        if os.path.isdir(os.path.join(cfg.task.env_runner.dataset_path, name))
     ]
     
     # sort files
     hdf5_files.sort()
+
+    # filter by tasks_name
+    hdf5_files = [file for file in hdf5_files if any(task_name in file for task_name in tasks_name)]
     
 
     env_runners = []
     for idx, file in enumerate(hdf5_files):
         task_name = file.split("/")[-1].split(".")[0]
-        if idx > 3:
-            break
 
         # configure env
         env_runner: BaseImageRunner
-        env_runner = hydra.utils.instantiate(cfg.env_runner, task_dir=file + f'/{task_name}.hdf5', output_dir=output_dir)
+        env_runner = hydra.utils.instantiate(cfg.task.env_runner, task_dir=file + f'/{task_name}.hdf5', output_dir=output_dir)
         assert isinstance(env_runner, BaseImageRunner)
         env_runners.append((task_name, env_runner))
 

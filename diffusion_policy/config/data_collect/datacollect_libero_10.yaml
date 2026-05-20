@@ -28,54 +28,54 @@ hydra:
   run:
     dir: logs/collect_data/${task_name}/${name}_${task_name}
 
-
-env_runner:
-  _target_: diffusion_policy.env_runner.libero_image_runner.LiberoImageRunner
-  abs_action: true
-  crf: 22
-  dataset_path: /pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/libero_10/libero_10
-  fps: 10
-  max_steps: 500
-  n_action_steps: 15
-  n_envs: 3
-  n_obs_steps: 2
-  n_test: 1
-  n_test_vis: 0
-  n_train: 0
-  n_train_vis: 0
-  past_action: false
-  render_obs_key: agentview_image
-  shape_meta:
-    action:
-      shape:
-      - 10
-    obs:
-      agentview_image:
+task:
+  env_runner:
+    _target_: diffusion_policy.env_runner.libero_image_runner.LiberoImageRunner
+    abs_action: true
+    crf: 22
+    dataset_path: /pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/libero_10/libero_10
+    fps: 10
+    max_steps: 500
+    n_action_steps: 15
+    n_envs: 3
+    n_obs_steps: 2
+    n_test: 1
+    n_test_vis: 0
+    n_train: 0
+    n_train_vis: 0
+    past_action: false
+    render_obs_key: agentview_image
+    shape_meta:
+      action:
         shape:
-        - 3
-        - 128
-        - 128
-        type: rgb
-      # robot0_eye_in_hand_image:
-      #   shape:
-      #   - 3
-      #   - 128
-      #   - 128
-      #   type: rgb
-      robot0_eef_quat:
-        shape:
-        - 4
-      robot0_eef_pos:
-        shape:
-        - 3
-      robot0_joint_pos:
-        shape:
-        - 7
-  test_start_seed: 100000
-  tqdm_interval_sec: 1.0
-  train_start_idx: 0
-  collect_data: True
-  return_intermediate_state: True
+        - 10
+      obs:
+        agentview_image:
+          shape:
+          - 3
+          - 128
+          - 128
+          type: rgb
+        # robot0_eye_in_hand_image:
+        #   shape:
+        #   - 3
+        #   - 128
+        #   - 128
+        #   type: rgb
+        robot0_eef_quat:
+          shape:
+          - 4
+        robot0_eef_pos:
+          shape:
+          - 3
+        robot0_joint_pos:
+          shape:
+          - 7
+    test_start_seed: 100000
+    tqdm_interval_sec: 1.0
+    train_start_idx: 0
+    collect_data: True
+    return_intermediate_state: True
 
 # shape_meta:
 #   action:

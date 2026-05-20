@@ -24,6 +24,7 @@ from termcolor import colored
 from diffusion_policy.common.pytorch_util import dict_apply, optimizer_to
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
 from diffusion_policy.policy.diffusion_unet_hybrid_image_policy import DiffusionUnetHybridImagePolicy
+from diffusion_policy.env_runner.load_env import load_libero_env_runner
 from diffusion_policy.env_runner.libero_image_runner import LiberoImageRunner
 from diffusion_policy.dataset.base_dataset import BaseImageDataset
 from diffusion_policy.common.checkpoint_util import TopKCheckpointManager
@@ -68,7 +69,7 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
 
     def prepare_preference_dataset(self, cfg):
 
-        tasks_name = [name for name in os.listdir(cfg.task.dataset_path) if os.path.isdir(os.path.join(cfg.task.dataset_path, name))][-2:]
+        tasks_name = [name for name in os.listdir(cfg.task.dataset_path) if os.path.isdir(os.path.join(cfg.task.dataset_path, name))][-1:]
         all_pref_datasets = {}
 
         for task_name in tasks_name:
@@ -99,6 +100,8 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
                 max_episodes_dataset_1=int(dataset_1.replay_buffer.n_episodes * (1 - cfg.task.dataset.val_ratio)),
                 task_name=task_name,
             )
+
+
             # cut online groups
             votes_1, votes_2 = pref_dataset.pref_replay_buffer.meta['votes'], pref_dataset.pref_replay_buffer.meta['votes_2']
 
@@ -133,7 +136,7 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
                         all_votes_2[local_epoch_idx] = np.maximum(all_votes_2[local_epoch_idx], 0)
                         
             all_pref_datasets[task_name] = [pref_dataset, all_votes_1, all_votes_2]
-        return all_pref_datasets
+        return all_pref_datasets, tasks_name
 
     def run(self):
         cfg = copy.deepcopy(self.cfg)
@@ -173,7 +176,7 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
         self.model.set_normalizer(normalizer)
         ###
 
-        all_pref_datasets = self.prepare_preference_dataset(cfg)
+        all_pref_datasets, tasks_name = self.prepare_preference_dataset(cfg)
 
         if cfg.training.use_ema:
             self.ema_model.set_normalizer(normalizer)
@@ -186,20 +189,20 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
                 model=self.ema_model)
 
         # configure env runner
-        env_runners = load_libero_env_runner(cfg, self.output_dir)
+        env_runners = load_libero_env_runner(cfg, self.output_dir, tasks_name)
 
 
-        # # configure logging
-        # wandb_run = wandb.init(
-        #     dir=str(self.output_dir),
-        #     config=OmegaConf.to_container(cfg, resolve=True),
-        #     **cfg.logging
-        # )
-        # wandb.config.update(
-        #     {
-        #         "output_dir": self.output_dir,
-        #     }
-        # )
+        # configure logging
+        wandb_run = wandb.init(
+            dir=str(self.output_dir),
+            config=OmegaConf.to_container(cfg, resolve=True),
+            **cfg.logging
+        )
+        wandb.config.update(
+            {
+                "output_dir": self.output_dir,
+            }
+        )
 
         # configure checkpoint
         topk_manager = TopKCheckpointManager(
@@ -241,7 +244,9 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
             combined_dataset = ConcatDataset(all_pref_datasets_local_votes)
 
             train_dataloader = DataLoader(combined_dataset, **cfg.dataloader)
-            self.optimizer = self.model.get_optimizer(**cfg.optimizer)
+            # self.optimizer = self.model.get_optimizer(**cfg.optimizer)
+            self.optimizer = hydra.utils.instantiate(
+                cfg.optimizer, params=self.model.parameters())
 
             # Place lr_scheduler here to reset in each round
             lr_scheduler = get_scheduler(
@@ -343,52 +348,56 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
                         step_log.update(runner_log)
 
                 # run diffusion sampling on a training batch
-                if (self.epoch % cfg.training.sample_every) == 0:
-                    with torch.no_grad():
-                        # sample trajectory from training set, and evaluate difference
-                        batch = dict_apply(train_sampling_batch, lambda x: x.to(device, non_blocking=True))
-                        get_obs, get_obs_2 = batch['obs'], batch['obs_2']
-                        gt_action, gt_action_2 = batch['action'], batch['action_2']
+                # if (self.epoch % cfg.training.sample_every) == 0:
+                #     with torch.no_grad():
+                #         # sample trajectory from training set, and evaluate difference
+                #         batch = dict_apply(train_sampling_batch, lambda x: x.to(device, non_blocking=True))
 
-                        start_idx = np.random.randint(0, gt_action.shape[1] - self.model.horizon + 1)
-                        end_idx = start_idx + self.model.horizon
-                        start_idx_2 = np.random.randint(0, gt_action_2.shape[1] - self.model.horizon + 1)
-                        end_idx_2 = start_idx_2 + self.model.horizon
+                #         start_idx = np.random.randint(0, batch['action'].shape[1] - self.model.horizon + 1)
+                #         end_idx = start_idx + self.model.horizon
 
-                        get_obs, get_obs_2 = get_obs[:, start_idx:end_idx, :], get_obs_2[:, start_idx_2:end_idx_2, :]
-                        gt_action, gt_action_2 = gt_action[:, start_idx:end_idx, :], gt_action_2[:, start_idx_2:end_idx_2, :]
-                        obs_dict = {'obs': get_obs}
-                        obs_dict_2 = {'obs': get_obs_2}
+                #         start_idx_2 = np.random.randint(0, batch[f'action_2'].shape[1] - self.model.horizon + 1)
+                #         end_idx_2 = start_idx_2 + self.model.horizon
 
-                        result = policy.predict_action(obs_dict)
-                        result_2 = policy.predict_action(obs_dict_2)
-                        if cfg.pred_action_steps_only:
-                            pred_action = result['action']
-                            pred_action_2 = result_2['action']
-                            start = cfg.n_obs_steps - 1
-                            end = start + cfg.n_action_steps
-                            gt_action = gt_action[:,start:end]
-                            gt_action_2 = gt_action_2[:,start:end]
-                        else:
-                            pred_action = result['action_pred']
-                            pred_action_2 = result_2['action_pred']
-                        mse = torch.nn.functional.mse_loss(pred_action, gt_action)
-                        mse_2 = torch.nn.functional.mse_loss(pred_action_2, gt_action_2)
-                        # log
-                        step_log['train_action_mse_error'] = mse.item()
-                        step_log['train_action_mse_2_error'] = mse_2.item()
-                        # release RAM
-                        del batch
-                        del obs_dict
-                        del gt_action
-                        del result
-                        del pred_action
-                        del mse
-                        del obs_dict_2
-                        del gt_action_2
-                        del result_2
-                        del pred_action_2
-                        del mse_2
+                #         obs_dict = {'obs': {}}
+                #         obs_dict_2 = {'obs': {}}
+
+                #         for key in ['obs', 'language', 'ee_ori', 'ee_pos', 'joint_states']:
+                #             get_obs, get_obs_2 = batch[key][:, start_idx:end_idx, :], batch[f'{key}_2'][:, start_idx_2:end_idx_2, :]
+                #             obs_dict['obs'][key] = get_obs
+                #             obs_dict_2['obs'][key] = get_obs_2
+
+                #         gt_action, gt_action_2 = batch['action'][:, start_idx:end_idx, :], batch['action_2'][:, start_idx_2:end_idx_2, :]
+
+                #         result = policy.predict_action(obs_dict)
+                #         result_2 = policy.predict_action(obs_dict_2)
+                #         if cfg.pred_action_steps_only:
+                #             pred_action = result['action']
+                #             pred_action_2 = result_2['action']
+                #             start = cfg.n_obs_steps - 1
+                #             end = start + cfg.n_action_steps
+                #             gt_action = gt_action[:,start:end]
+                #             gt_action_2 = gt_action_2[:,start:end]
+                #         else:
+                #             pred_action = result['action_pred']
+                #             pred_action_2 = result_2['action_pred']
+                #         mse = torch.nn.functional.mse_loss(pred_action, gt_action)
+                #         mse_2 = torch.nn.functional.mse_loss(pred_action_2, gt_action_2)
+                #         # log
+                #         step_log['train_action_mse_error'] = mse.item()
+                #         step_log['train_action_mse_2_error'] = mse_2.item()
+                #         # release RAM
+                #         del batch
+                #         del obs_dict
+                #         del gt_action
+                #         del result
+                #         del pred_action
+                #         del mse
+                #         del obs_dict_2
+                #         del gt_action_2
+                #         del result_2
+                #         del pred_action_2
+                #         del mse_2
 
                 # checkpoint
                 if self.epoch != 0 and ((self.epoch % cfg.training.checkpoint_every) == 0 or self.epoch == cfg.training.num_epochs - 1):

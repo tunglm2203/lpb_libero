@@ -10,9 +10,9 @@ export MUJOCO_GL="egl"
 VAL_RATIO_ALL=(
 #  0.02
 #  0.6
-#  0.8
+ 0.8
   # 0.9
-  1.0
+  # 1.0
 )
 
 for VAL_RATIO in "${VAL_RATIO_ALL[@]}"; do

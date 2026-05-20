@@ -1,5 +1,9 @@
 _target_: diffusion_policy.workspace.train_pbrl_diffusion_offline_workspace.PbrlDiffusionWorkspace
 gamma: 0.999 
+
+obs_as_cond: True
+pred_action_steps_only: False
+
 checkpoint_dir: null
 checkpoint:
   save_last_ckpt: true
@@ -55,7 +59,7 @@ optimizer:
   weight_decay: 1.0e-06
 past_action_visible: false
 policy:
-  _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_policy.DiffusionUnetHybridImagePolicy
+  _target_: diffusion_policy.policy.pbrl_diffusion_unet_hybrid_image_policy.PbrlDiffusionUnetHybridImagePolicy
   cond_predict_scale: true
   crop_shape:
   - 114
@@ -82,6 +86,7 @@ policy:
     variance_type: fixed_small
   num_inference_steps: 100
   obs_as_global_cond: true
+  obs_as_cond: true
   obs_encoder_group_norm: true
   shape_meta:
     action:
@@ -116,7 +121,6 @@ policy:
   bias_reg: 0.25
   bc_coef: 1.0
   ignore_equal_pref: False
-  train_time_samples: 1
 task:
   abs_action: true
   dataset:
@@ -171,7 +175,7 @@ task:
     crf: 22
     dataset_path: data/libero_10/libero_10
     fps: 10
-    max_steps: 500
+    max_steps: 250
     n_action_steps: 15
     n_envs: 2
     n_obs_steps: 2
@@ -297,7 +301,7 @@ training:
   val_every: 1
 
 
-  cpl_loss_type: 'cpl_kl'   # 'cpl'
+  cpl_loss_type: 'normal'   # 'cpl'
   use_bc: False
   use_expert_data: False
   dataset_1_dir: 'data/robomimic/datasets/lift/noraml/robomimic_data_0.5.h5'

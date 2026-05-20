@@ -165,9 +165,10 @@ class PrefReplayBuffer:
         new_len = curr_len + 1
 
         # Add trajectory 1
-        for key in ['obs', 'action']:
+        for key in ['obs', 'action', 'language', 'ee_pos', 'ee_ori', 'joint_states']:
             # Create the new shape to accommodate all time steps
             value = data[key]
+
             new_shape = (new_len,) + (episode_length,) + data[key].shape[1:]  # This will set (new_len, T, dim)
 
             if key not in self.root['data']:
@@ -191,7 +192,7 @@ class PrefReplayBuffer:
 
 
         # Add trajectory 2 (obs_2, action_2)
-        for key in ['obs_2', 'action_2']:
+        for key in ['obs_2', 'action_2', 'language_2', 'ee_pos_2', 'ee_ori_2', 'joint_states_2']:
             value = data[key]
             # Create the new shape to accommodate all time steps
             new_shape = (new_len,) + (episode_length,) + data[key].shape[1:]  # This will set (new_len, T, dim)
@@ -289,6 +290,14 @@ class PrefReplayBuffer:
                 'length_2': self.root['meta']['length_2'][idx],
                 'beta_priori': self.root['meta']['beta_priori'][idx],
                 'beta_priori_2': self.root['meta']['beta_priori_2'][idx],
+                'language': self.root['data']['language'][idx],
+                'language_2': self.root['data']['language_2'][idx],
+                'ee_ori': self.root['data']['ee_ori'][idx],
+                'ee_ori_2': self.root['data']['ee_ori_2'][idx],
+                'ee_pos': self.root['data']['ee_pos'][idx],
+                'ee_pos_2': self.root['data']['ee_pos_2'][idx],
+                'joint_states': self.root['data']['joint_states'][idx],
+                'joint_states_2': self.root['data']['joint_states_2'][idx],
             }
 
     def get_episode_slice(self, idx):
