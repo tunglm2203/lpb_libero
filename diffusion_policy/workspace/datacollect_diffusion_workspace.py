@@ -94,7 +94,7 @@ class DatacollectDiffusionWorkspace(BaseWorkspace):
         #     task_dir=cfg.env_runner.dataset_path,
         #     dataset_path=cfg.env_runner.dataset_path,
         # )
-        env_runners = load_libero_env_runner(cfg, self.output_dir, tasks_name=['LIVING_ROOM_SCENE6'])
+        env_runners = load_libero_env_runner(cfg, self.output_dir, tasks_name=['KITCHEN_SCENE3'])
         # assert isinstance(env_runners, list[tuple[str, LiberoImageRunner]])
 
         # device transfer

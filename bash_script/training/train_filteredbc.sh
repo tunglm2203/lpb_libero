@@ -10,15 +10,15 @@ ALL_CONFIGS=(
   "bc_libero_diffusion_policy_cnn.yaml"
 )
 VAL_RATIO_ALL=(
+#  0.02
   0.2
-  # 0.3
 #  0.8
 #  0.9
 )
 
 for VAL_RATIO in "${VAL_RATIO_ALL[@]}"; do
   TRAIN_RATIO=$(echo "1 - $VAL_RATIO" | bc -l)
-  EXP_NAME="mixedbc_dp_transformer_ERate${TRAIN_RATIO}"
+  EXP_NAME="filteredbc_dp_cnn_ERate${TRAIN_RATIO}"
 
   for CONFIG_NAME in "${ALL_CONFIGS[@]}"; do
 
@@ -37,8 +37,9 @@ for VAL_RATIO in "${VAL_RATIO_ALL[@]}"; do
         task.env_runner.dataset_path=${DATASET_PATH} \
         task.dataset.dataset_path=${DATASET_PATH} \
         task.dataset.val_ratio=${VAL_RATIO} \
-        task.rollout_dataset.mixed_bc=True task.rollout_dataset.filtered_bc=False \
+        task.rollout_dataset.mixed_bc=False task.rollout_dataset.filtered_bc=True \
         task.rollout_dataset.dataset_path=${ROLLOUT_DATA} \
+        task.rollout_dataset.use_cache=True \
         training.seed=${SEED} \
         training.num_epochs=1000 \
         checkpoint.topk.k=1 \

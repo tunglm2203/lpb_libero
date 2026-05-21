@@ -70,7 +70,10 @@ class LiberoRolloutDataset(BaseImageDataset):
         replay_buffer = None
         if use_cache:
             if language_emb_model == "clip":
-                cache_zarr_path = dataset_path + "_clip_both_views.zarr.zip"
+                if filtered_bc:
+                    cache_zarr_path = dataset_path + "_clip_both_views_filtered.zarr.zip"
+                else:
+                    cache_zarr_path = dataset_path + "_clip_both_views.zarr.zip"
             else:
                 raise NotImplementedError(f"Language model {language_emb_model} not implemented")
 
@@ -91,6 +94,7 @@ class LiberoRolloutDataset(BaseImageDataset):
                             rotation_transformer=rotation_transformer,
                             language_emb_model=language_emb_model,
                             val_ratio=val_ratio,
+                            filtered_bc=filtered_bc
                         )
                         print("Saving cache to disk.")
                         with zarr.ZipStore(cache_zarr_path) as zip_store:
@@ -114,6 +118,7 @@ class LiberoRolloutDataset(BaseImageDataset):
                 rotation_transformer=rotation_transformer,
                 language_emb_model=language_emb_model,
                 val_ratio=val_ratio,
+                filtered_bc=filtered_bc
             )
 
         rgb_keys = list()
@@ -290,7 +295,7 @@ mapping_keys = {
     'actions': 'actions',
     'language': 'language',
     'obs/agentview_rgb': 'agentview_image',
-    'obs/rewards': 'successes',
+    'obs/rewards': 'rewards',
     # 'obs/successes': 'successes'
 }
 
@@ -303,7 +308,8 @@ def _convert_robomimic_to_replay(
     n_workers=None,
     max_inflight_tasks=None,
     language_emb_model=None,
-    val_ratio=None
+    val_ratio=None,
+    filtered_bc=False
 ):
     if n_workers is None:
         n_workers = multiprocessing.cpu_count()
@@ -358,6 +364,12 @@ def _convert_robomimic_to_replay(
 
         for i in range(len(demos)):
             demo = demos[f"episode_{i}"]
+
+            if filtered_bc:
+                # only keep demos that have success=True
+                print(f"Episode {i}: {np.sum(demo['rewards'])}")
+                if np.sum(demo["rewards"]) == 0:
+                    continue
             demos_all[f"episode_{count}"] = demo
             language_all[f"episode_{count}"] = language_goal
             count += 1
@@ -416,12 +428,12 @@ def _convert_robomimic_to_replay(
             demo = demos[f"episode_{i}"]
             demo_key_data = demo[data_key][:].astype(np.float32)
 
-            if data_key not in ['actions', 'language', 'successes']:
+            if data_key not in ['actions', 'language', 'rewards']:
                 demo_key_data = demo_key_data[:,-1]
             
-            if data_key == 'successes':
+            if data_key == 'rewards':
                 rewards = np.zeros(len(demo_key_data)).astype(np.uint8)
-                if demo_key_data[-1]:
+                if np.sum(demo_key_data) > 0:
                     rewards[-1] = 1
                 demo_key_data = rewards[:, None]
 

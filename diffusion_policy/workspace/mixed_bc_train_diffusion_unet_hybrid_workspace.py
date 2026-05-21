@@ -20,6 +20,8 @@ import wandb
 import tqdm
 import numpy as np
 import shutil
+from termcolor import colored
+import dill
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
 from diffusion_policy.policy.diffusion_unet_hybrid_image_policy import DiffusionUnetHybridImagePolicy
 from diffusion_policy.dataset.base_dataset import BaseImageDataset
@@ -29,6 +31,7 @@ from diffusion_policy.common.json_logger import JsonLogger
 from diffusion_policy.common.pytorch_util import dict_apply, optimizer_to
 from diffusion_policy.model.diffusion.ema_model import EMAModel
 from diffusion_policy.model.common.lr_scheduler import get_scheduler
+from diffusion_policy.model.common.normalizer import LinearNormalizer
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 
@@ -44,9 +47,14 @@ class MixedBCTrainDiffusionUnetHybridWorkspace(BaseWorkspace):
         np.random.seed(seed)
         random.seed(seed)
 
-        # configure model
-        self.model: DiffusionUnetHybridImagePolicy = hydra.utils.instantiate(cfg.policy)
+        ckpt_file = pathlib.Path(cfg.checkpoint_dir)
+        assert ckpt_file.is_file()
+        print(colored(f"Collecting from: {ckpt_file}", "green", attrs=["bold"]))
+        payload = torch.load(ckpt_file.open('rb'), pickle_module=dill)
+        self.pretrained_cfg = payload['cfg']
 
+        # configure model
+        self.model: DiffusionUnetHybridImagePolicy = hydra.utils.instantiate(self.pretrained_cfg.policy)
         self.ema_model: DiffusionUnetHybridImagePolicy = None
         if cfg.training.use_ema:
             self.ema_model = copy.deepcopy(self.model)
@@ -54,6 +62,9 @@ class MixedBCTrainDiffusionUnetHybridWorkspace(BaseWorkspace):
         # configure training state
         self.optimizer = hydra.utils.instantiate(
             cfg.optimizer, params=self.model.parameters())
+
+        exclude_keys = ['optimizer']
+        self.load_payload(payload, exclude_keys=exclude_keys, include_keys=None)
 
         # configure training state
         self.global_step = 0
@@ -64,6 +75,7 @@ class MixedBCTrainDiffusionUnetHybridWorkspace(BaseWorkspace):
 
         # resume training
         if cfg.training.resume:
+            breakpoint()
             lastest_ckpt_path = self.get_checkpoint_path()
             if lastest_ckpt_path.is_file():
                 print(f"Resuming from checkpoint {lastest_ckpt_path}")
@@ -73,13 +85,12 @@ class MixedBCTrainDiffusionUnetHybridWorkspace(BaseWorkspace):
         dataset: BaseImageDataset
         dataset = hydra.utils.instantiate(cfg.task.dataset)
         assert isinstance(dataset, BaseImageDataset)
-        normalizer = dataset.get_normalizer()
+        # normalizer = dataset.get_normalizer()
 
         rollout_dataset: BaseImageDataset
         rollout_dataset = hydra.utils.instantiate(cfg.task.rollout_dataset)
         assert isinstance(rollout_dataset, BaseImageDataset)
 
-        breakpoint()
 
         # Concat datasets
         dataset = ConcatDataset([dataset, rollout_dataset])
@@ -89,7 +100,15 @@ class MixedBCTrainDiffusionUnetHybridWorkspace(BaseWorkspace):
         # val_dataset = dataset.get_validation_dataset()
         # val_dataloader = DataLoader(val_dataset, **cfg.val_dataloader)
 
+        ### Load normalizer
+        normalizer_path = os.path.join(os.path.dirname(os.path.dirname(cfg.checkpoint_dir)), "normalizer.pth")
+        print("loading normalizer from", normalizer_path)
+        state_dict = torch.load(normalizer_path, map_location="cpu")
+        normalizer = LinearNormalizer()
+        normalizer.load_state_dict(state_dict)
         self.model.set_normalizer(normalizer)
+        ###
+
         if cfg.training.use_ema:
             self.ema_model.set_normalizer(normalizer)
 
