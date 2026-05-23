@@ -62,6 +62,7 @@ class LiberoRolloutDataset(BaseImageDataset):
         filtered_bc=False,
         rollout_data=None
     ):
+        self.dataset_path = dataset_path
 
         rotation_transformer = RotationTransformer(
             from_rep="axis_angle", to_rep=rotation_rep
@@ -460,7 +461,7 @@ def _convert_robomimic_to_replay(
             this_data = _convert_actions(raw_actions=this_data,abs_action=abs_action,rotation_transformer=rotation_transformer)
 
 
-            assert this_data.shape == (n_steps,) + tuple(shape_meta["action"]["shape"]), "loi 1"
+            assert this_data.shape == (n_steps,) + tuple(shape_meta["action"]["shape"]), f"this_data.shape {this_data.shape} != (n_steps,) + tuple(shape_meta['action']['shape']) {(n_steps,) + tuple(shape_meta['action']['shape'])}"
 
             this_language_data = np.concatenate(this_language_data, axis=0)
             if language_emb_model == "clip":

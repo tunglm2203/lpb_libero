@@ -24,7 +24,7 @@ from termcolor import colored
 from diffusion_policy.common.pytorch_util import dict_apply, optimizer_to
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
 from diffusion_policy.policy.diffusion_unet_hybrid_image_policy import DiffusionUnetHybridImagePolicy
-from diffusion_policy.env_runner.load_env import load_libero_env_runner
+from diffusion_policy.env_runner.load_env import load_libero_env_runner, env_rollout
 from diffusion_policy.env_runner.libero_image_runner import LiberoImageRunner
 from diffusion_policy.dataset.base_dataset import BaseImageDataset
 from diffusion_policy.common.checkpoint_util import TopKCheckpointManager
@@ -77,29 +77,40 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
             print(f"Processing task: {task_name}")
             # configure dataset
             dataset_1: BaseImageDataset
-            dataset_1 = hydra.utils.instantiate(cfg.task.dataset, dataset_path=os.path.join(cfg.task.dataset_path, task_name))
-
-            # if cfg.training.use_expert_data:
-            #     dataset_1 = hydra.utils.instantiate(cfg.task.dataset, include_reward=True)
-            # else:
-            #     dataset_1 = hydra.utils.instantiate(cfg.task.dataset_1)
+            if cfg.training.use_expert_data_1:
+                dataset_1 = hydra.utils.instantiate(cfg.task.dataset, dataset_path=os.path.join(cfg.task.dataset_path, task_name))
+            else:
+                dataset_1 = hydra.utils.instantiate(cfg.task.dataset_1)
             assert isinstance(dataset_1, BaseImageDataset)
 
             # configure dataset
             dataset_2: BaseImageDataset
-            if cfg.training.use_expert_data:
+            if cfg.training.use_expert_data_2:
                 breakpoint()
                 dataset_2 = hydra.utils.instantiate(cfg.task.dataset, dataset_path=os.path.join(cfg.task.dataset_path, task_name))
             else:
+                # breakpoint()
+
                 dataset_2 = hydra.utils.instantiate(cfg.task.dataset_2, shape_meta=cfg.task.dataset.shape_meta, dataset_path=os.path.join(cfg.task.dataset_2.dataset_path, task_name))
             assert isinstance(dataset_2, BaseImageDataset)
 
 
+            if (not cfg.training.use_expert_data_1) and (not cfg.training.use_expert_data_2):
+                # If both dataset_1 and dataset_2 are rollout data, then we pass the expert to generate preference
+                dataset_expert = hydra.utils.instantiate(cfg.task.dataset, include_reward=True)
+                dataset_expert_path = dataset_expert.dataset_path
+                replay_expert = dataset_expert.replay_buffer
+            else:
+                replay_expert = dataset_expert_path = None
+
+
             pref_dataset: BaseImageDataset
             pref_dataset = hydra.utils.instantiate(
-                cfg.task.pref_dataset, replay_buffer_1=dataset_1.replay_buffer, replay_buffer_2=dataset_2.replay_buffer,
-                max_episodes_dataset_1=int(dataset_1.replay_buffer.n_episodes * (1 - cfg.task.dataset.val_ratio)),
-                task_name=task_name,
+                cfg.task.pref_dataset,
+                replay_buffer_1=dataset_1.replay_buffer, replay_buffer_2=dataset_2.replay_buffer,
+                dataset_1_path=dataset_1.dataset_path, dataset_2_path=dataset_2.dataset_path,
+                pseudo_preference=cfg.training.pseudo_preference,
+                replay_buffer_expert=replay_expert, dataset_expert_path=dataset_expert_path
             )
 
 
@@ -108,33 +119,6 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
 
             all_votes_1 = np.array([votes_1 for _ in range(cfg.training.preference_learning.num_rounds)])
             all_votes_2 = np.array([votes_2 for _ in range(cfg.training.preference_learning.num_rounds)])
-
-            # add noise to votes
-            if cfg.training.preference_learning.reverse_rate > 0:
-                # select uncertain samples
-                var = (votes_1 * votes_2) / (((votes_1 + votes_2 + 1e-6) ** 2) * (votes_1 + votes_2 + 1))
-                mask = (votes_1 + votes_2) != 0
-                var_masked = var[mask]
-                var_flat = var_masked.flatten()
-                count = int(len(var_flat) * cfg.training.preference_learning.reverse_ratio)
-                threshold = np.partition(var_flat, -count)[-count]
-                masked_indices = np.where(var_flat >= threshold)[0]
-                original_indices = np.where(mask.flatten())[0]
-                indices = original_indices[masked_indices]
-
-                for local_epoch_idx in range(cfg.training.preference_learning.num_rounds):
-                    if local_epoch_idx % cfg.training.preference_learning.reverse_freq == 0:
-                        X = stats.truncnorm(-3, 3, loc=cfg.training.preference_learning.reverse_rate, scale=cfg.training.preference_learning.reverse_rate / 3)
-                        noise_ratio = X.rvs(all_votes_1.shape[1])
-                        noise_ratio = noise_ratio.reshape(-1, 1)
-
-                        all_votes_1[local_epoch_idx][indices] = all_votes_1[local_epoch_idx][indices] + np.round(
-                            (all_votes_2[local_epoch_idx][indices] - all_votes_1[local_epoch_idx][indices]) * noise_ratio[indices])
-                        all_votes_2[local_epoch_idx][indices] = all_votes_2[local_epoch_idx][indices] + np.round(
-                            (all_votes_1[local_epoch_idx][indices] - all_votes_2[local_epoch_idx][indices]) * noise_ratio[indices])
-
-                        all_votes_1[local_epoch_idx] = np.maximum(all_votes_1[local_epoch_idx], 0)
-                        all_votes_2[local_epoch_idx] = np.maximum(all_votes_2[local_epoch_idx], 0)
                         
             all_pref_datasets[task_name] = [pref_dataset, all_votes_1, all_votes_2]
         return all_pref_datasets, tasks_name
@@ -164,9 +148,9 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
         ref_policy.to(device)
 
         # configure dataset
-        dataset: BaseImageDataset
-        dataset = hydra.utils.instantiate(cfg.task.dataset)
-        assert isinstance(dataset, BaseImageDataset)
+        # dataset: BaseImageDataset
+        # dataset = hydra.utils.instantiate(cfg.task.dataset)
+        # assert isinstance(dataset, BaseImageDataset)
 
         ### Load normalizer
         normalizer_path = os.path.join(os.path.dirname(os.path.dirname(cfg.checkpoint_dir)), "normalizer.pth")
@@ -204,6 +188,13 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
                 "output_dir": self.output_dir,
             }
         )
+        if cfg.training.pseudo_preference:
+            # log wandb about
+            wandb_run.log({
+                "pseudo_preference/retained_pairs": pref_dataset.retained_pairs,
+                "pseudo_preference/accuracy": pref_dataset.accuracy,
+                "pseudo_preference/retained_rate": pref_dataset.retention_rate
+            }, step=0)
 
         # configure checkpoint
         topk_manager = TopKCheckpointManager(
@@ -278,20 +269,22 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
                             train_sampling_batch = batch
 
                         # compute loss
-                        if cfg.training.cpl_loss_type == 'cpl_kl':
-                            raw_loss, loss_metrics = self.model.compute_loss_cpl_kl(batch, ref_model=ref_policy.model,
-                                                                                    stride=stride,
-                                                                                    use_bc=cfg.training.use_bc,
-                                                                                    equal_pref_threshold=equal_pref_threshold)
-                        elif cfg.training.cpl_loss_type == 'cpl':
-                            raw_loss, loss_metrics = self.model.compute_loss_cpl(batch,
-                                                                                 stride=stride,
-                                                                                 use_bc=cfg.training.use_bc,
-                                                                                 equal_pref_threshold=equal_pref_threshold)
+                        if cfg.training.cpl_loss_type == 'cplkl':
+                            raw_loss, loss_metrics = self.model.compute_loss_cpl_kl(
+                                batch,
+                                epoch=local_epoch_idx,
+                                ref_model=ref_policy.model,
+                                n_epoch_sft=cfg.training.n_epoch_sft,
+                                sft_type=cfg.training.sft_type,
+                                stride=stride,
+                                equal_pref_threshold=equal_pref_threshold
+                            )
                         elif cfg.training.cpl_loss_type == 'sft':
-                            raw_loss, loss_metrics = self.model.compute_loss_sft(batch,
-                                                                                 stride=stride,
-                                                                                 equal_pref_threshold=equal_pref_threshold)
+                            raw_loss, loss_metrics = self.model.compute_loss_sft(
+                                batch,
+                                stride=stride,
+                                equal_pref_threshold=equal_pref_threshold
+                            )
                         else:
                             raise NotImplementedError
                         loss = raw_loss / cfg.training.gradient_accumulate_every
@@ -343,62 +336,12 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
 
                 # run rollout
                 if (self.epoch % cfg.training.rollout_every) == 0 or self.epoch == cfg.training.num_epochs - 1:
-                    for task_name, env_runner in env_runners:
-                        runner_log = env_runner.run(policy)
-                        # log all
-                        step_log.update(runner_log)
+                    # for task_name, env_runner in env_runners:
+                    #     runner_log = env_runner.run(policy)
+                    #     # log all
+                    #     step_log.update(runner_log)
+                    step_log = env_rollout(cfg, env_runners, policy)
 
-                # run diffusion sampling on a training batch
-                # if (self.epoch % cfg.training.sample_every) == 0:
-                #     with torch.no_grad():
-                #         # sample trajectory from training set, and evaluate difference
-                #         batch = dict_apply(train_sampling_batch, lambda x: x.to(device, non_blocking=True))
-
-                #         start_idx = np.random.randint(0, batch['action'].shape[1] - self.model.horizon + 1)
-                #         end_idx = start_idx + self.model.horizon
-
-                #         start_idx_2 = np.random.randint(0, batch[f'action_2'].shape[1] - self.model.horizon + 1)
-                #         end_idx_2 = start_idx_2 + self.model.horizon
-
-                #         obs_dict = {'obs': {}}
-                #         obs_dict_2 = {'obs': {}}
-
-                #         for key in ['obs', 'language', 'ee_ori', 'ee_pos', 'joint_states']:
-                #             get_obs, get_obs_2 = batch[key][:, start_idx:end_idx, :], batch[f'{key}_2'][:, start_idx_2:end_idx_2, :]
-                #             obs_dict['obs'][key] = get_obs
-                #             obs_dict_2['obs'][key] = get_obs_2
-
-                #         gt_action, gt_action_2 = batch['action'][:, start_idx:end_idx, :], batch['action_2'][:, start_idx_2:end_idx_2, :]
-
-                #         result = policy.predict_action(obs_dict)
-                #         result_2 = policy.predict_action(obs_dict_2)
-                #         if cfg.pred_action_steps_only:
-                #             pred_action = result['action']
-                #             pred_action_2 = result_2['action']
-                #             start = cfg.n_obs_steps - 1
-                #             end = start + cfg.n_action_steps
-                #             gt_action = gt_action[:,start:end]
-                #             gt_action_2 = gt_action_2[:,start:end]
-                #         else:
-                #             pred_action = result['action_pred']
-                #             pred_action_2 = result_2['action_pred']
-                #         mse = torch.nn.functional.mse_loss(pred_action, gt_action)
-                #         mse_2 = torch.nn.functional.mse_loss(pred_action_2, gt_action_2)
-                #         # log
-                #         step_log['train_action_mse_error'] = mse.item()
-                #         step_log['train_action_mse_2_error'] = mse_2.item()
-                #         # release RAM
-                #         del batch
-                #         del obs_dict
-                #         del gt_action
-                #         del result
-                #         del pred_action
-                #         del mse
-                #         del obs_dict_2
-                #         del gt_action_2
-                #         del result_2
-                #         del pred_action_2
-                #         del mse_2
 
                 # checkpoint
                 if self.epoch != 0 and ((self.epoch % cfg.training.checkpoint_every) == 0 or self.epoch == cfg.training.num_epochs - 1):
@@ -413,6 +356,7 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
                     for key, value in step_log.items():
                         new_key = key.replace('/', '_')
                         metric_dict[new_key] = value
+                    metric_dict['epoch'] = self.epoch
 
                     # We can't copy the last checkpoint here
                     # since save_checkpoint uses threads.
@@ -421,6 +365,7 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
 
                     if topk_ckpt_path is not None:
                         self.save_checkpoint(path=topk_ckpt_path)
+
                 # ========= eval end for this epoch ==========
                 policy.train()
 

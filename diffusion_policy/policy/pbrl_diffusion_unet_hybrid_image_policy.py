@@ -58,6 +58,7 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
             bias_reg=1.0,
             bc_coef=1.0,
             ignore_equal_pref=False,
+            gamma=0.999,
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -192,6 +193,7 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
         self.obs_as_global_cond = obs_as_global_cond
         self.obs_as_cond = obs_as_cond
         self.pred_action_steps_only = pred_action_steps_only
+        self.gamma = gamma
         self.kwargs = kwargs
 
         # Parameters for preference learning
@@ -464,7 +466,7 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
     def set_normalizer(self, normalizer: LinearNormalizer):
         self.normalizer.load_state_dict(normalizer.state_dict())
 
-    def compute_loss(self, batch):
+    def compute_loss(self, batch, return_pred=False, return_cond=False):
 
 
         # print(batch.keys())
@@ -528,6 +530,9 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
             cond_data = torch.cat([nactions, nobs_features], dim=-1)
             trajectory = cond_data.detach()
 
+        if return_cond:
+            return global_cond, trajectory
+
         # generate impainting mask
         condition_mask = self.mask_generator(trajectory.shape)
 
@@ -553,6 +558,7 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
         # Predict the noise residual
         pred = self.model(noisy_trajectory, timesteps, 
             local_cond=local_cond, global_cond=global_cond)
+    
 
         pred_type = self.noise_scheduler.config.prediction_type 
         if pred_type == 'epsilon':
@@ -561,6 +567,9 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
             target = trajectory
         else:
             raise ValueError(f"Unsupported prediction type {pred_type}")
+
+        if return_pred:
+            return pred, target
 
         loss = F.mse_loss(pred, target, reduction='none')
         loss = loss * loss_mask.type(loss.dtype)
@@ -590,7 +599,6 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
 
         # Slice to make it compatible with action chunking
         keys_to_slice = ['obs', 'action', 'ee_ori', 'ee_pos', 'joint_states', 'language']
-
         sliced_batch = {key: slice_episode(batch[key], horizon=self.horizon, stride=stride) for key in keys_to_slice}
         assert not self.pred_action_steps_only and self.obs_as_global_cond and self.noise_scheduler.config.prediction_type == 'epsilon'
 
@@ -619,3 +627,203 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
             'bc_loss': loss.item(),
         }
         return loss, loss_metrics
+
+    def encode_condition(self, obs_batch):
+        text_latents = None
+
+        if 'language' in obs_batch:
+            language_goal = obs_batch["language"]
+
+            text_tokens = {
+                "input_ids": language_goal[:, 0].long()[:, 0],
+                "attention_mask": language_goal[:, 0].long()[:, 1],
+            }
+
+            text_latents = extract_text_features(
+                self.text_model,
+                text_tokens,
+                language_emb_model='clip',
+            )
+
+        nobs = self.normalizer.normalize(obs_batch)
+
+        this_nobs = dict_apply(
+            nobs,
+            lambda x: x[:, :self.n_obs_steps, ...].reshape(-1, *x.shape[2:])
+        )
+
+        nobs_features = self.obs_encoder(this_nobs)
+
+        B = next(iter(nobs.values())).shape[0]
+
+        global_cond = nobs_features.reshape(B, -1)
+
+        if text_latents is not None:
+            global_cond = torch.cat([global_cond, text_latents], dim=-1)
+
+        return global_cond
+
+    def compute_loss_cpl_kl(
+            self, batch, epoch, ref_model, n_epoch_sft=0, sft_type="pos", stride=10, equal_pref_threshold=0.05
+    ):
+        assert sft_type in ["pos", "both"]
+        batch = {
+            k: v.to(self.device) if torch.is_tensor(v) else v
+            for k, v in batch.items()
+        }
+        batch['length'] = batch['length'].detach()
+        batch['length_2'] = batch['length_2'].detach()
+
+        diff = torch.abs(batch["votes"] - batch["votes_2"])
+        mask_not_equal_pref = torch.squeeze(diff > equal_pref_threshold, dim=-1).type(torch.float32)
+
+        # Swap so segment 1 is always the preferred/winner trajectory
+        mask_pref_right = ((batch["votes"] < batch["votes_2"]) & (diff > equal_pref_threshold)).squeeze(-1)
+        for key in ["obs", "action", "votes", "length", 'ee_ori', 'ee_pos', 'joint_states', 'language']:
+            batch[key][mask_pref_right], batch[f"{key}_2"][mask_pref_right] = batch[f"{key}_2"][mask_pref_right], batch[key][mask_pref_right]
+
+        # Slice to make it compatible with action chunking
+        keys_to_slice = ['obs', 'action', 'ee_ori', 'ee_pos', 'joint_states', 'language']
+        sliced_batch = {key: slice_episode(batch[key], horizon=self.horizon, stride=stride) for key in keys_to_slice}
+        sliced_batch_2 = {key: slice_episode(batch[f"{key}_2"], horizon=self.horizon, stride=stride) for key in keys_to_slice}
+        assert (len(sliced_batch['obs']) == len(sliced_batch_2['obs'])) and (len(sliced_batch['action']) == len(sliced_batch_2['action']))
+        assert not self.pred_action_steps_only and self.obs_as_global_cond and self.noise_scheduler.config.prediction_type == 'epsilon'
+
+
+        bsz = sliced_batch['obs'][0].shape[0]
+        n_train_denoise_timesteps = self.noise_scheduler.config.num_train_timesteps
+        use_bc = True if epoch < n_epoch_sft else False
+
+        valid_count_1 = torch.zeros(bsz, device=self.device)
+        valid_count_2 = torch.zeros(bsz, device=self.device)
+        segment_loss_1, segment_loss_2, imitation_loss = 0.0, 0.0, 0.0
+        for i in range(len(sliced_batch['obs'])):
+            timesteps = torch.randint(0, n_train_denoise_timesteps, (bsz,), device=self.device).long()
+            timesteps_1 = timesteps
+            timesteps_2 = timesteps
+
+            sample_1 = {key: sliced_batch[key][i] for key in keys_to_slice}
+            sample_2 = {key: sliced_batch_2[key][i] for key in keys_to_slice}
+
+            #### Encode condition
+
+            obs_dict_1 = {}
+            obs_dict_1.update(obs={
+                'agentview_rgb': sample_1['obs'].permute(0,1,4,2,3),
+                'ee_ori': sample_1['ee_ori'],
+                'ee_pos': sample_1['ee_pos'],
+                'joint_states': sample_1['joint_states'],
+                'language': sample_1['language'],
+            })
+            obs_dict_1.update(action=sample_1['action'])
+
+            obs_dict_2 = {}
+            obs_dict_2.update(obs={
+                'agentview_rgb': sample_2['obs'].permute(0,1,4,2,3),
+                'ee_ori': sample_2['ee_ori'],
+                'ee_pos': sample_2['ee_pos'],
+                'joint_states': sample_2['joint_states'],
+                'language': sample_2['language'],
+            })
+            obs_dict_2.update(action=sample_2['action'])
+
+            global_cond_1, trajectory_1 = self.compute_loss(obs_dict_1, return_cond=True)
+            global_cond_2, trajectory_2 = self.compute_loss(obs_dict_2, return_cond=True)
+
+            #### Masks
+            actual_timesteps = i * stride + torch.arange(self.horizon, device=self.device)
+            step_mask_1 = (actual_timesteps.unsqueeze(0) < batch['length'].view(-1,1)).float()
+            step_mask_2 = (actual_timesteps.unsqueeze(0) < batch['length_2'].view(-1,1)).float()
+            valid_count_1 += step_mask_1.sum(dim=-1)  # Accumulate total valid timesteps evaluated
+            valid_count_2 += step_mask_2.sum(dim=-1)  # Accumulate total valid timesteps evaluated
+            discounts = (self.gamma ** actual_timesteps).unsqueeze(0)  # Compute gamma discounts (shape of [1, horizon])
+            weights_1 = discounts * step_mask_1
+            weights_2 = discounts * step_mask_2
+
+            #### Diffusion forward
+            condition_mask = self.mask_generator(trajectory_1.shape)
+            loss_mask = (~condition_mask).float()
+
+            ## segment 1
+            noise_1 = torch.randn_like(trajectory_1)
+            noisy_trajectory_1 = self.noise_scheduler.add_noise(trajectory_1, noise_1, timesteps_1)
+            noisy_trajectory_1[condition_mask] = trajectory_1[condition_mask]
+            pred_1 = self.model(noisy_trajectory_1, timesteps_1, global_cond=global_cond_1)
+
+            ## segment 2
+            if (not use_bc) or (use_bc and sft_type == "both"):
+                noise_2 = torch.randn_like(trajectory_2)
+                noisy_trajectory_2 = self.noise_scheduler.add_noise(trajectory_2, noise_2, timesteps_2)
+                noisy_trajectory_2[condition_mask] = trajectory_2[condition_mask]
+                pred_2 = self.model(noisy_trajectory_2, timesteps_2, global_cond=global_cond_2)
+            else:
+                noise_2 = noisy_trajectory_2 = pred_2 = None
+
+            if use_bc:
+                if sft_type == "pos":
+                    imitation_loss_1 = torch.norm((pred_1 - noise_1) * loss_mask, dim=-1) ** 2
+                    imitation_loss += torch.sum(imitation_loss_1 * step_mask_1, dim=-1)
+                elif sft_type == "both":
+                    imitation_loss_1 = torch.norm((pred_1 - noise_1) * loss_mask, dim=-1) ** 2
+                    imitation_loss_2 = torch.norm((pred_2 - noise_2) * loss_mask, dim=-1) ** 2
+                    imitation_loss += (torch.sum(imitation_loss_1 * step_mask_1, dim=-1) + torch.sum(imitation_loss_2 * step_mask_2, dim=-1))
+                else:
+                    raise NotImplementedError    
+
+            else:
+                with torch.no_grad():
+                    ref_pred_1 = ref_model(noisy_trajectory_1, timesteps_1, global_cond=global_cond_1)
+                    ref_pred_2 = ref_model(noisy_trajectory_2, timesteps_2, global_cond=global_cond_2)
+
+                slice_loss_1 = (torch.norm((pred_1 - noise_1) * loss_mask, dim=-1) ** 2 - torch.norm((ref_pred_1 - noise_1) * loss_mask, dim=-1) ** 2)
+                slice_loss_2 = (torch.norm((pred_2 - noise_2) * loss_mask, dim=-1) ** 2 - torch.norm((ref_pred_2 - noise_2) * loss_mask, dim=-1) ** 2)
+
+                if self.ignore_equal_pref:
+                    segment_loss_1 += torch.sum(slice_loss_1 * weights_1, dim=-1) * mask_not_equal_pref
+                    segment_loss_2 += torch.sum(slice_loss_2 * weights_2, dim=-1) * mask_not_equal_pref
+                else:
+                    segment_loss_1 += torch.sum(slice_loss_1 * weights_1, dim=-1)
+                    segment_loss_2 += torch.sum(slice_loss_2 * weights_2, dim=-1)
+
+        if use_bc:
+            if sft_type == "pos":
+                norm_factor = torch.clamp(valid_count_1, min=1.0)
+            else:   # both
+                norm_factor = (torch.clamp(valid_count_1, min=1.0) + torch.clamp(valid_count_2, min=1.0))
+
+            imitation_loss = imitation_loss / norm_factor
+            loss_total = torch.mean(imitation_loss)
+            mle_loss_1, accuracy = 0.0, 0.0
+        else:
+            norm_factor_1 = torch.clamp(valid_count_1 / self.horizon, min=1.0)  # num of chunk that calculated
+            norm_factor_2 = torch.clamp(valid_count_2 / self.horizon, min=1.0)  # num of chunk that calculated
+
+            segment_loss_1 = -self.beta * n_train_denoise_timesteps * segment_loss_1 / norm_factor_1
+            segment_loss_2 = -self.beta * n_train_denoise_timesteps * segment_loss_2 / norm_factor_2
+
+            mle_loss_1 = -F.logsigmoid(segment_loss_1 - self.bias_reg * segment_loss_2)
+            if self.ignore_equal_pref:
+                # Average ONLY pairs that have unequal preferences
+                valid_pairs = torch.clamp(mask_not_equal_pref.sum(), min=1.0)
+                loss_total = (mle_loss_1 * mask_not_equal_pref).sum() / valid_pairs
+                # Ignore tied pairs so they don't count as incorrect
+                with torch.no_grad():
+                    correct_preds = (segment_loss_1.detach() > segment_loss_2.detach()).float()
+                    accuracy = ((correct_preds * mask_not_equal_pref).sum() / valid_pairs).item()
+            else:
+                loss_total = torch.mean(mle_loss_1)
+                with torch.no_grad():
+                    accuracy = (segment_loss_1.detach() > segment_loss_2.detach()).float().mean().item()
+
+        loss_metrics = {
+            'mle_loss_1': mle_loss_1.mean().item() if isinstance(mle_loss_1, torch.Tensor) else mle_loss_1,
+            'segment_loss_1': segment_loss_1.mean().item() if isinstance(segment_loss_1, torch.Tensor) else segment_loss_1,
+            'segment_loss_2': segment_loss_2.mean().item() if isinstance(segment_loss_2, torch.Tensor) else segment_loss_2,
+            'bc_loss': imitation_loss.mean().item() if isinstance(imitation_loss, torch.Tensor) else imitation_loss,
+            'accuracy': accuracy
+        }
+
+        if self.ignore_equal_pref:
+            loss_metrics.update({'total_mask_not_equal': mask_not_equal_pref.sum()})
+        return loss_total, loss_metrics
+

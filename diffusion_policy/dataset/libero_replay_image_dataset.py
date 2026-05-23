@@ -56,6 +56,7 @@ class LiberoReplayImageDataset(BaseImageDataset):
         language_emb_model=None,
         data_aug=False,
     ):
+        self.dataset_path = dataset_path
 
         rotation_transformer = RotationTransformer(
             from_rep="axis_angle", to_rep=rotation_rep

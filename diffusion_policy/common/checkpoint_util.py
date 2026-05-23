@@ -23,8 +23,7 @@ class TopKCheckpointManager:
         if self.k == 0:
             return None
         value = data[self.monitor_key]
-        ckpt_path = os.path.join(
-            self.save_dir, self.format_str.format(**data))
+        ckpt_path = os.path.join(self.save_dir, self.format_str.format(**data))
         
         if len(self.path_value_map) < self.k:
             # under-capacity
