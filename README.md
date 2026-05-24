@@ -4,6 +4,10 @@
 
 
 ```bash
+
+git clone https://github.com/tunglm2203/lpb_libero
+git checkout collect_data
+
 conda env create -f conda_environment.yaml
 uv pip install transformer==4.30.2 huggingface_hub==0.20.3 bddl easydict
 conda install -c conda-forge mesalib glfw glew patchelf
