@@ -66,8 +66,12 @@ class PbrlDataset(BaseImageDataset):
         num_episodes_2 = int(len(episode_ends_2) * (1 - val_ratio_data2))
         self.pref_replay_buffer = PrefReplayBuffer.create_empty_numpy()
         random.seed(seed)
-        print(f"=====================> PbrlLowdimDataset: Num episodes (dataset_1): {num_episodes_1}")
-        print(f"=====================> PbrlLowdimDataset: Num episodes (dataset_2): {num_episodes_2}")
+        print(f"=====================> PbrlLowdimDataset: Num episodes (dataset_1): {num_episodes_1}, "
+              f"min_len={replay_buffer_1.episode_lengths.min()}, max_len={replay_buffer_1.episode_lengths.max()}")
+        print(f"=====================> PbrlLowdimDataset: Num episodes (dataset_2): {num_episodes_2},"
+              f"min_len={replay_buffer_2.episode_lengths.min()}, max_len={replay_buffer_2.episode_lengths.max()}")
+
+        breakpoint()
 
         # NOTE: 18/05 tri load npz or sample-and-save
         idx_path = f"logs/pbrl_indices/{task_name}/pair_{task_name}_nQ{num_queries}_L{sequence_length}_{num_episodes_1}_{num_episodes_2}.npz"
@@ -109,13 +113,13 @@ class PbrlDataset(BaseImageDataset):
             feats_1 = load_or_compute_feats(
                 f"cache/dataset_1_{task_name.replace('_lowdim', '')}_{feature_extractor}.npz",
                 video_paths_1, encoder, device, drop_last='datacollect_diffusion_transformer' in video_paths_1,
-                use_cached=True, save_cached=True)
+                use_cached=True, save_cached=True) # len = 45, [0].shape = numframes,512
             feats_2 = load_or_compute_feats(
                 f"cache/dataset_2_{task_name.replace('_lowdim', '')}_{feature_extractor}.npz",
                 video_paths_2, encoder, device, drop_last='datacollect_diffusion_transformer' in video_paths_2,
-                use_cached=True, save_cached=True)
+                use_cached=True, save_cached=True) # len = 200, [0].shape = numframes,512
             print(f"Total time to load/encode {len(video_paths_1) + len(video_paths_2)} videos: {time.time() - start:.2f}s")
-
+            
             if replay_buffer_expert is None:
                 replay_buffer_expert = replay_buffer_1
                 dataset_expert_path = dataset_1_path
@@ -124,7 +128,8 @@ class PbrlDataset(BaseImageDataset):
             base_3 = os.path.join(os.path.dirname(dataset_expert_path), "videos")
             expert_paths = [f"{base_3}/episode_{i}.mp4" for i in top_k]
             expert_feats = load_or_compute_feats(f"cache/experts_{task_name}_nD{self.n_demos_for_preference}_{feature_extractor}.npz", expert_paths, encoder, device, use_cached=False, save_cached=False)
-            expert_ctx = [get_context_observations(f, context_num=self.context_num) for f in expert_feats]
+            expert_ctx = [get_context_observations(f, context_num=self.context_num) for f in expert_feats] # [0].shape = context_num, numframes, 512
+
 
             # ----- Precompute per-(traj, expert) rewards (the big win) -----
             print("precomputing trajectory's rewards for dataset 1...")
