@@ -117,11 +117,12 @@ policy:
       language:
         shape:
         - 15
-  beta: 0.1
+  beta: 0.01
   bias_reg: 0.25
   bc_coef: 1.0
   ignore_equal_pref: False
   gamma: ${gamma}
+  clip_margin: 0.3
 task:
   abs_action: true
   dataset:
@@ -287,10 +288,10 @@ task:
     gpu_device: ${training.device}
     dense_reward: ${task.dense_reward}
     task_name: ${task.name}
-    pseudo_preference: False
+    pseudo_preference: True
     feature_extractor: r3m_resnet18
     context_num: 3
-    seg_margin: 0.6
+    seg_margin: 0.5
     min_progress: 0.0
     n_demos_for_preference: 10
 
@@ -320,7 +321,7 @@ training:
   n_epoch_sft: 0
   sft_type: "pos"
   stride_ratio: 0.5
-  pseudo_preference: False
+  pseudo_preference: True
   dataset_1_dir: 'data/robomimic/datasets/lift/noraml/robomimic_data_0.5.h5'
   dataset_2_dir: 'data/robomimic/datasets/lift/noraml/robomimic_data_0.5_2.h5'
   preference_learning:

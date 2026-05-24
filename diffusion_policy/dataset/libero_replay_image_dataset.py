@@ -324,7 +324,7 @@ def _convert_robomimic_to_replay(
 
     dataset_paths = glob.glob(dataset_path + "/*_demo.hdf5")
 
-    dataset_paths = ['/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/libero_10/libero_10/KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it_demo/KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it_demo.hdf5']
+    dataset_paths = ['/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/libero_10/libero_10/LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate_demo/LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate_demo.hdf5']
 
     for dataset_path_each in dataset_paths:
         language_goal = " ".join(dataset_path_each.split("/")[-1][:-10].split("_"))

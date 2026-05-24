@@ -528,7 +528,8 @@ class ReplayBuffer:
         self.add_episode(data)
 
     def get_episode(self, idx, keys=None, copy=False):
-        idx = list(range(len(self.episode_ends)))[idx]
+        # idx = list(range(len(self.episode_ends)))[idx]
+        # print(idx)
         start_idx = 0
         if idx > 0:
             start_idx = self.episode_ends[idx-1]

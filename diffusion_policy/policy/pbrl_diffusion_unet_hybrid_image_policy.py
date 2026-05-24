@@ -59,6 +59,7 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
             bc_coef=1.0,
             ignore_equal_pref=False,
             gamma=0.999,
+            clip_margin=None,
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -194,6 +195,7 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
         self.obs_as_cond = obs_as_cond
         self.pred_action_steps_only = pred_action_steps_only
         self.gamma = gamma
+        self.clip_margin = clip_margin
         self.kwargs = kwargs
 
         # Parameters for preference learning
@@ -777,6 +779,14 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
 
                 slice_loss_1 = (torch.norm((pred_1 - noise_1) * loss_mask, dim=-1) ** 2 - torch.norm((ref_pred_1 - noise_1) * loss_mask, dim=-1) ** 2)
                 slice_loss_2 = (torch.norm((pred_2 - noise_2) * loss_mask, dim=-1) ** 2 - torch.norm((ref_pred_2 - noise_2) * loss_mask, dim=-1) ** 2)
+
+
+                if self.clip_margin is not None:
+                    # TODO: Test this Soft Clip later to avoid abruptly cut the gradient
+                    # slice_loss_1 = self.clip_margin * torch.tanh(slice_loss_1 / self.clip_margin)
+                    # slice_loss_2 = self.clip_margin * torch.tanh(slice_loss_2 / self.clip_margin)
+                    slice_loss_1 = torch.clamp(slice_loss_1, min=-self.clip_margin, max=self.clip_margin)
+                    slice_loss_2 = torch.clamp(slice_loss_2, min=-self.clip_margin, max=self.clip_margin)
 
                 if self.ignore_equal_pref:
                     segment_loss_1 += torch.sum(slice_loss_1 * weights_1, dim=-1) * mask_not_equal_pref

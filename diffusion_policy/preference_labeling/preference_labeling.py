@@ -95,7 +95,7 @@ def load_or_compute_feats(cache_path, video_paths, encoder, device, drop_last=Fa
     """Load cached features or run ResNet on every video then cache to disk."""
     if use_cached and os.path.exists(cache_path):
         data = np.load(cache_path, allow_pickle=True)
-        return list(data["feats"])
+        return [np.asarray(f, dtype=np.float32) for f in data["feats"]]
     feats = []
     for p in tqdm(video_paths, desc=f"encoding -> {os.path.basename(cache_path)}"):
         vr = VideoReader(p)

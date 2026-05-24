@@ -252,6 +252,7 @@ class PbrlDataset(BaseImageDataset):
                         'beta_priori_2': np.ones([2]),
                     }
                 )
+
         if self.pseudo_preference:
             assert retained_pairs > 0, f"Margin ({self.seg_margin}) is too strict! 0 pairs retained out of {num_queries}."
             cprint(f"Task={task_name.upper()}: n_expert={self.n_demos_for_preference}, n_queries={num_queries}, seq_len={sequence_length}, feat={feature_extractor}, min_progress={min_progress}, margin={seg_margin}", "green", attrs=["bold"])

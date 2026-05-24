@@ -108,7 +108,7 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
             pref_dataset = hydra.utils.instantiate(
                 cfg.task.pref_dataset,
                 replay_buffer_1=dataset_1.replay_buffer, replay_buffer_2=dataset_2.replay_buffer,
-                dataset_1_path=dataset_1.dataset_path, dataset_2_path=dataset_2.dataset_path,
+                dataset_1_path=os.path.join(dataset_1.dataset_path, task_name), dataset_2_path=os.path.join(dataset_2.dataset_path, task_name),
                 pseudo_preference=cfg.training.pseudo_preference,
                 replay_buffer_expert=replay_expert, dataset_expert_path=dataset_expert_path
             )
@@ -190,10 +190,11 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
         )
         if cfg.training.pseudo_preference:
             # log wandb about
+            task_name = 'LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate_demo'
             wandb_run.log({
-                "pseudo_preference/retained_pairs": pref_dataset.retained_pairs,
-                "pseudo_preference/accuracy": pref_dataset.accuracy,
-                "pseudo_preference/retained_rate": pref_dataset.retention_rate
+                "pseudo_preference/retained_pairs": all_pref_datasets[task_name][0].retained_pairs,
+                "pseudo_preference/accuracy": all_pref_datasets[task_name][0].accuracy,
+                "pseudo_preference/retained_rate": all_pref_datasets[task_name][0].retention_rate
             }, step=0)
 
         # configure checkpoint
