@@ -14,9 +14,6 @@ conda install -c conda-forge mesalib glfw glew patchelf
 ```
 
 ## Download expert and rollout dataset
-expert: https://huggingface.co/datasets/ducido/LIVING_ROOM_SCENE6
-rollout: https://huggingface.co/datasets/ducido/LIVING_ROOM_SCENE6
-
 ```bash
 
 # Expert
