@@ -123,6 +123,9 @@ policy:
   ignore_equal_pref: False
   gamma: ${gamma}
   clip_margin: 0.3
+  smooth_label: 0.0
+  confidence_weight: False
+  unclip_win: False
 task:
   abs_action: true
   dataset:

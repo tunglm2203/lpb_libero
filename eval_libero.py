@@ -21,6 +21,7 @@ from omegaconf import OmegaConf, open_dict
 from termcolor import cprint
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
 from diffusion_policy.env_runner.load_env import load_env_runner, env_rollout
+from diffusion_policy.model.common.normalizer import LinearNormalizer
 
 def str2bool(v):
     # used for parsing boolean arguments
@@ -77,13 +78,17 @@ def setup_noise_schedule(cfg, noise_scheduler, num_inference_steps=None):
 
 def main(args):
     checkpoint = args.checkpoint
-    output_dir = args.output_dir
+    if os.path.isfile(checkpoint):
+        exp_name = checkpoint.split("/")[-3]
+    else:
+        raise NotImplementedError
+    output_dir = os.path.join(args.output_dir, exp_name, args.dataset_name.replace(".hdf5", ""))
     seed = args.seed
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    if os.path.exists(output_dir):
-        click.confirm(f"Output path {output_dir} already exists! Overwrite?", abort=True)
+    # if os.path.exists(output_dir):
+    #     click.confirm(f"Output path {output_dir} already exists! Overwrite?", abort=True)
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-    
+
     # load checkpoint
     payload = torch.load(open(checkpoint, 'rb'), pickle_module=dill)
     cfg = payload['cfg']
@@ -91,44 +96,60 @@ def main(args):
     cfg = setup_noise_schedule(cfg, args.noise_scheduler, args.num_inference_steps)
     workspace = cls(cfg, output_dir=output_dir)
     workspace: BaseWorkspace
-    workspace.load_payload(payload, exclude_keys=None, include_keys=None)
-    
+    exclude_keys = ['optimizer']
+    workspace.load_payload(payload, exclude_keys=exclude_keys, include_keys=None)
+
     # get policy from workspace
     policy = workspace.model
     if cfg.training.use_ema:
         policy = workspace.ema_model
-    
+
     device = torch.device(device)
     policy.to(device)
     policy.eval()
+
+    ### Load normalizer
+    normalizer_path = os.path.join(os.path.dirname(os.path.dirname(cfg.checkpoint_dir)), "normalizer.pth")
+    print("loading normalizer from", normalizer_path)
+    state_dict = torch.load(normalizer_path, map_location="cpu")
+    policy.normalizer = LinearNormalizer()
+    policy.normalizer.load_state_dict(state_dict)
+    policy.normalizer.to(device)
 
     # Setup eval runner
     cfg.task.env_runner['n_train_vis'] = 0
     cfg.task.env_runner['n_test_vis'] = 0
     cfg.task.env_runner['n_train'] = 0
     cfg.task.env_runner['n_test'] = args.ntest
-    cfg.task.env_runner['n_envs'] = 50
+    cfg.task.env_runner['n_envs'] = 1
     cfg.task.env_runner['test_start_seed'] = 20000 + 10000 * seed
 
     cprint(f"Checkpoint: {checkpoint}", 'yellow', attrs=['bold'])
     cprint(f"Evaluation setting:", 'yellow', attrs=['bold'])
     cprint(f"    Env:    Ta={cfg.task.env_runner.n_action_steps}, To={cfg.task.env_runner.n_obs_steps}", 'yellow', attrs=['bold'])
     cprint(f"    Policy: Ta={policy.n_action_steps}, To={policy.n_obs_steps}, Tp={policy.horizon}", 'yellow', attrs=['bold'])
-    
+
     # run eval
-    env_runner = load_env_runner(cfg, output_dir)
-    runner_log = env_rollout(cfg, env_runner, policy)
-    cprint(f"Test: {runner_log['test/mean_score']:.4f}", "green", attrs=['bold'])
-    
-    # dump log to json
-    json_log = dict()
+    cfg.task.env_runner._target_ = "diffusion_policy.env_runner.libero_image_sequential_runner.SequentialLiberoImageRunner"
+    task_dir = os.path.join(cfg.task.env_runner.dataset_path, args.dataset_name.split('.')[0])
+    env_runner = hydra.utils.instantiate(
+        cfg.task.env_runner,
+        output_dir=output_dir,
+        task_dir=os.path.join(task_dir, args.dataset_name)
+    )
+    runner_log = env_runner.run(policy)
+    results = {}
     for key, value in runner_log.items():
         if isinstance(value, wandb.sdk.data_types.video.Video):
-            json_log[key] = value._path
+            results[key] = value._path
         else:
-            json_log[key] = value
-    out_path = os.path.join(output_dir, 'eval_log.json')
-    json.dump(json_log, open(out_path, 'w'), indent=2, sort_keys=True)
+            results[key] = value
+
+    results_path = os.path.join(output_dir, f"eval_results_{args.seed}.json")
+    with open(results_path, 'w') as f:
+        json.dump(results, f, indent=2, sort_keys=True)
+
+    print(f"Evaluation results saved to {results_path}")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -136,7 +157,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', type=str, required=True)
     parser.add_argument('--ntest', type=int, default=50)
     parser.add_argument('--seed', type=int, default=1)
-    parser.add_argument('--ckpt_selection', type=str, default="last", choices=["best", "last"])
+    parser.add_argument('--dataset_name', type=str, default=None)
 
     # Diffusion policy setting
     parser.add_argument('--noise_scheduler', type=str, default='ddpm')

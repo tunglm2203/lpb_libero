@@ -71,7 +71,6 @@ class PbrlDataset(BaseImageDataset):
         print(f"=====================> PbrlLowdimDataset: Num episodes (dataset_2): {num_episodes_2},"
               f"min_len={replay_buffer_2.episode_lengths.min()}, max_len={replay_buffer_2.episode_lengths.max()}")
 
-        breakpoint()
 
         # NOTE: 18/05 tri load npz or sample-and-save
         idx_path = f"logs/pbrl_indices/{task_name}/pair_{task_name}_nQ{num_queries}_L{sequence_length}_{num_episodes_1}_{num_episodes_2}.npz"

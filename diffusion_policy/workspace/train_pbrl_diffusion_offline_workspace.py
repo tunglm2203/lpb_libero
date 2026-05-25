@@ -59,9 +59,9 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
         if cfg.training.use_ema:
             self.ema_model = copy.deepcopy(self.model)
 
+
         # configure training state
-        self.optimizer = hydra.utils.instantiate(
-            cfg.optimizer, params=self.model.parameters())
+        self.optimizer = hydra.utils.instantiate(cfg.optimizer, params=self.model.parameters())
 
 
         self.global_step = 0

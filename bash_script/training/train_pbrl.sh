@@ -23,7 +23,7 @@ for VAL_RATIO in 0.1; do
         USE_EXP_DATA_1=1   # To sample left segments
         USE_EXP_DATA_2=0   # To sample right segments
         DENSE_REWARD=1
-        N_QUERIES=9999
+        N_QUERIES=20000
         IGNORE_EQUAL_PREF=0
         EQUAL_THRESHOLD=0.05
         N_EPOCH_SFT=0
@@ -34,13 +34,14 @@ for VAL_RATIO in 0.1; do
         SEG_MARGIN=0.2      # Segment must beat the other by 60% coverage to win
         MIN_PROGRESS=0      # At least one segment must achieve 2% coverage
         N_DEMOS_FOR_PREF=10
+        UNCLIP_WIN=1
 
 
         DATASET_PATH='data/libero_10/libero_10'   # ${task_name} will be replaced during run-time
         DATASET_1="logs/collect_data_200eps/libero_10/datacollect_diffusion_unet_libero_10"
         DATASET_2="logs/collect_data_200eps/libero_10/datacollect_diffusion_unet_libero_10"
 
-        EXP_NAME="${CPL_TYPE}_pseu_dpT_ExpD${USE_EXP_DATA_1}${USE_EXP_DATA_2}_Rew${DENSE_REWARD}_N${N_QUERIES}_L${SEG_SIZE}_bias${BIAS_REG}_Eq${IGNORE_EQUAL_PREF}_thr${EQUAL_THRESHOLD}_1ER${TRAIN_RATIO}_SFT${SFT_TYPE}${N_EPOCH_SFT}_strid${STRIDE}_segM${SEG_MARGIN}_${MIN_PROGRESS}_nD${N_DEMOS_FOR_PREF}_beta${CPL_BETA}_clip${CLIP_MARGIN}"
+        EXP_NAME="${CPL_TYPE}_pseu_dpT_ExpD${USE_EXP_DATA_1}${USE_EXP_DATA_2}_Rew${DENSE_REWARD}_N${N_QUERIES}_L${SEG_SIZE}_bias${BIAS_REG}_Eq${IGNORE_EQUAL_PREF}_thr${EQUAL_THRESHOLD}_1ER${TRAIN_RATIO}_SFT${SFT_TYPE}${N_EPOCH_SFT}_strid${STRIDE}_segM${SEG_MARGIN}_${MIN_PROGRESS}_nD${N_DEMOS_FOR_PREF}_beta${CPL_BETA}_clip${CLIP_MARGIN}_unclipwin${UNCLIP_WIN}"
 
         for SEED in 42; do
           HYDRA_FULL_ERROR=1 CUDA_VISIBLE_DEVICES=${GPU} python train.py \
@@ -61,6 +62,7 @@ for VAL_RATIO in 0.1; do
             policy.ignore_equal_pref=${IGNORE_EQUAL_PREF} \
             policy.beta=${CPL_BETA} \
             policy.clip_margin=${CLIP_MARGIN} \
+            policy.unclip_win=${UNCLIP_WIN} \
             training.preference_learning.equal_threshold=${EQUAL_THRESHOLD} \
             training.n_epoch_sft=${N_EPOCH_SFT} training.sft_type=${SFT_TYPE} \
             training.stride_ratio=${STRIDE} \

@@ -60,6 +60,9 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
             ignore_equal_pref=False,
             gamma=0.999,
             clip_margin=None,
+            smooth_label=0.0,
+            confidence_weight=False,
+            unclip_win=False,
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -196,6 +199,9 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
         self.pred_action_steps_only = pred_action_steps_only
         self.gamma = gamma
         self.clip_margin = clip_margin
+        self.smooth_label = smooth_label    # 0 = disabled
+        self.confidence_weight = confidence_weight
+        self.unclip_win = unclip_win
         self.kwargs = kwargs
 
         # Parameters for preference learning
@@ -381,88 +387,6 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
         }
         return result
 
-    def predict_action_dyn_guided(self, obs_dict: Dict[str, torch.Tensor], language_goal=None) -> Dict[str, torch.Tensor]:
-        """
-        obs_dict: must include "obs" key
-        result: must include "action" key
-        """
-        assert 'past_action' not in obs_dict # not implemented yet
-        # normalize input
-        text_latents = None
-        if language_goal is not None:
-            text_tokens = self.tokenizer(
-                language_goal,
-                padding="max_length",
-                max_length=self.max_length,
-                return_tensors="pt",
-            ).to(self.device)
-            text_latents = extract_text_features(
-                self.text_model,
-                text_tokens,
-                language_emb_model='clip',
-            )
-
-        nobs = self.normalizer.normalize(obs_dict)
-        value = next(iter(nobs.values()))
-        B, To = value.shape[:2]
-        T = self.horizon
-        Da = self.action_dim
-        Do = self.obs_feature_dim
-        To = self.n_obs_steps
-
-        # build input
-        device = self.device
-        dtype = self.dtype
-
-        # handle different ways of passing observation
-        local_cond = None
-        global_cond = None
-        if self.obs_as_global_cond:
-            # condition through global feature
-            this_nobs = dict_apply(nobs, lambda x: x[:,:To,...].reshape(-1,*x.shape[2:]))
-            nobs_features = self.obs_encoder(this_nobs)
-            # reshape back to B, Do
-            global_cond = nobs_features.reshape(B, -1)
-            if text_latents is not None:
-                global_cond = torch.cat([global_cond, text_latents], dim=-1)
-            # empty data for action
-            cond_data = torch.zeros(size=(B, T, Da), device=device, dtype=dtype)
-            cond_mask = torch.zeros_like(cond_data, dtype=torch.bool)
-        else:
-            # condition through impainting
-            this_nobs = dict_apply(nobs, lambda x: x[:,:To,...].reshape(-1,*x.shape[2:]))
-            nobs_features = self.obs_encoder(this_nobs)
-            # reshape back to B, To, Do
-            nobs_features = nobs_features.reshape(B, To, -1)
-            cond_data = torch.zeros(size=(B, T, Da+Do), device=device, dtype=dtype)
-            cond_mask = torch.zeros_like(cond_data, dtype=torch.bool)
-            cond_data[:,:To,Da:] = nobs_features
-            cond_mask[:,:To,Da:] = True
-
-
-        nsample = self.guided_conditional_sample(
-            cond_data, 
-            cond_mask,
-            local_cond=local_cond,
-            global_cond=global_cond,
-            classifier_guidance=True,
-            current_obs=dict_apply(obs_dict, lambda x: x[:, -1:, ...]),
-            text_latents=text_latents,
-            **self.kwargs)
-        # unnormalize prediction
-        naction_pred = nsample[...,:Da]
-        action_pred = self.normalizer['action'].unnormalize(naction_pred)
-
-        # get action
-        start = To - 1
-        end = start + self.n_action_steps
-        action = action_pred[:,start:end]
-        
-        result = {
-            'action': action,
-            'action_pred': action_pred
-        }
-        return result
     
     # ========= training  ============
     def set_normalizer(self, normalizer: LinearNormalizer):
@@ -679,6 +603,10 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
         diff = torch.abs(batch["votes"] - batch["votes_2"])
         mask_not_equal_pref = torch.squeeze(diff > equal_pref_threshold, dim=-1).type(torch.float32)
 
+        if self.confidence_weight:
+            temperature = 0.03
+            confidence_weight = torch.sigmoid((diff - equal_pref_threshold) / temperature)
+
         # Swap so segment 1 is always the preferred/winner trajectory
         mask_pref_right = ((batch["votes"] < batch["votes_2"]) & (diff > equal_pref_threshold)).squeeze(-1)
         for key in ["obs", "action", "votes", "length", 'ee_ori', 'ee_pos', 'joint_states', 'language']:
@@ -785,7 +713,8 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
                     # TODO: Test this Soft Clip later to avoid abruptly cut the gradient
                     # slice_loss_1 = self.clip_margin * torch.tanh(slice_loss_1 / self.clip_margin)
                     # slice_loss_2 = self.clip_margin * torch.tanh(slice_loss_2 / self.clip_margin)
-                    slice_loss_1 = torch.clamp(slice_loss_1, min=-self.clip_margin, max=self.clip_margin)
+                    if not self.unclip_win:
+                        slice_loss_1 = torch.clamp(slice_loss_1, min=-self.clip_margin, max=self.clip_margin)
                     slice_loss_2 = torch.clamp(slice_loss_2, min=-self.clip_margin, max=self.clip_margin)
 
                 if self.ignore_equal_pref:
@@ -811,17 +740,42 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
             segment_loss_1 = -self.beta * n_train_denoise_timesteps * segment_loss_1 / norm_factor_1
             segment_loss_2 = -self.beta * n_train_denoise_timesteps * segment_loss_2 / norm_factor_2
 
-            mle_loss_1 = -F.logsigmoid(segment_loss_1 - self.bias_reg * segment_loss_2)
+            z = segment_loss_1 - self.bias_reg * segment_loss_2
+
+            epsilon_smooth = self.smooth_label
+            if epsilon_smooth == 0:
+                # Standard CPL
+                mle_loss_1 = -F.logsigmoid(z)
+            else:
+                # Conservative CPL blends the forward and reversed preferences
+                mle_loss_1 = -(1 - epsilon_smooth) * F.logsigmoid(z) - epsilon_smooth * F.logsigmoid(-z)
+
+            if self.confidence_weight:
+                # Squeeze confidence weight to match mle_loss_1 shape (B,)
+                cw = confidence_weight.squeeze(-1)
+
+            # mle_loss_1 = -F.logsigmoid(segment_loss_1 - self.bias_reg * segment_loss_2)
             if self.ignore_equal_pref:
                 # Average ONLY pairs that have unequal preferences
                 valid_pairs = torch.clamp(mask_not_equal_pref.sum(), min=1.0)
-                loss_total = (mle_loss_1 * mask_not_equal_pref).sum() / valid_pairs
+                if self.confidence_weight:
+                    # Apply hard mask AND soft confidence weight
+                    weighted_loss = mle_loss_1 * mask_not_equal_pref * cw
+                    loss_total = weighted_loss.sum() / valid_pairs
+                else:
+                    loss_total = (mle_loss_1 * mask_not_equal_pref).sum() / valid_pairs
                 # Ignore tied pairs so they don't count as incorrect
                 with torch.no_grad():
                     correct_preds = (segment_loss_1.detach() > segment_loss_2.detach()).float()
                     accuracy = ((correct_preds * mask_not_equal_pref).sum() / valid_pairs).item()
             else:
-                loss_total = torch.mean(mle_loss_1)
+                if self.confidence_weight:
+                    # Apply soft confidence weight to ALL pairs
+                    weighted_loss = mle_loss_1 * cw
+                    # Use weighted mean to maintain stable gradient magnitudes
+                    loss_total = weighted_loss.sum() / torch.clamp(cw.sum(), min=1.0)
+                else:
+                    loss_total = torch.mean(mle_loss_1)
                 with torch.no_grad():
                     accuracy = (segment_loss_1.detach() > segment_loss_2.detach()).float().mean().item()
 
@@ -832,6 +786,20 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
             'bc_loss': imitation_loss.mean().item() if isinstance(imitation_loss, torch.Tensor) else imitation_loss,
             'accuracy': accuracy
         }
+
+        if isinstance(segment_loss_1, torch.Tensor) and isinstance(segment_loss_2, torch.Tensor):
+            scale = self.beta * n_train_denoise_timesteps
+            # Argument to logsigmoid: |reward_logit| >> 5 means sigmoid is saturated -> gradients vanish
+            reward_logit = (segment_loss_1 - self.bias_reg * segment_loss_2).mean().item()
+            # Raw log-ratios (before beta scaling): < 0 = model improved vs ref, > 0 = drifted away
+            # log_ratio_win should be ≤ 0 (improving on preferred); log_ratio_lose >> 0 = collapse
+            log_ratio_win  = (-segment_loss_1 / scale).mean().item()
+            log_ratio_lose = (-segment_loss_2 / scale).mean().item()
+            loss_metrics.update({
+                'reward_logit': reward_logit,
+                'log_ratio_win': log_ratio_win,
+                'log_ratio_lose': log_ratio_lose,
+            })
 
         if self.ignore_equal_pref:
             loss_metrics.update({'total_mask_not_equal': mask_not_equal_pref.sum()})
