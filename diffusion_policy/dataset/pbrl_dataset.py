@@ -110,11 +110,11 @@ class PbrlDataset(BaseImageDataset):
 
             start = time.time()
             feats_1 = load_or_compute_feats(
-                f"cache/dataset_1_{task_name.replace('_lowdim', '')}_{feature_extractor}.npz",
+                f"cache/dataset_1_{task_name.replace('_lowdim', '')}_{feature_extractor}_new.npz",
                 video_paths_1, encoder, device, drop_last='datacollect_diffusion_transformer' in video_paths_1,
                 use_cached=True, save_cached=True) # len = 45, [0].shape = numframes,512
             feats_2 = load_or_compute_feats(
-                f"cache/dataset_2_{task_name.replace('_lowdim', '')}_{feature_extractor}.npz",
+                f"cache/dataset_2_{task_name.replace('_lowdim', '')}_{feature_extractor}_new.npz",
                 video_paths_2, encoder, device, drop_last='datacollect_diffusion_transformer' in video_paths_2,
                 use_cached=True, save_cached=True) # len = 200, [0].shape = numframes,512
             print(f"Total time to load/encode {len(video_paths_1) + len(video_paths_2)} videos: {time.time() - start:.2f}s")

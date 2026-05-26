@@ -83,6 +83,10 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
                 dataset_1 = hydra.utils.instantiate(cfg.task.dataset_1)
             assert isinstance(dataset_1, BaseImageDataset)
 
+            # expert_image = dataset_1.replay_buffer.data.agentview_rgb[0]
+            # import matplotlib.pyplot as plt
+            # plt.imsave("/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/debugs/expert_image.png", expert_image)
+
             # configure dataset
             dataset_2: BaseImageDataset
             if cfg.training.use_expert_data_2:
@@ -93,6 +97,11 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
 
                 dataset_2 = hydra.utils.instantiate(cfg.task.dataset_2, shape_meta=cfg.task.dataset.shape_meta, dataset_path=os.path.join(cfg.task.dataset_2.dataset_path, task_name))
             assert isinstance(dataset_2, BaseImageDataset)
+
+            # rollout_image = dataset_2.replay_buffer.data.agentview_rgb[0]
+            # import matplotlib.pyplot as plt
+            # plt.imsave("/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/debugs/rollout_image.png", rollout_image)
+            # breakpoint()
 
 
             if (not cfg.training.use_expert_data_1) and (not cfg.training.use_expert_data_2):

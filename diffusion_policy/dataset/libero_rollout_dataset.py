@@ -523,7 +523,10 @@ def _convert_robomimic_to_replay(
 
                 for episode_idx in range(len(demos)):
                     demo = demos[f"episode_{episode_idx}"]
-                    hdf5_arr = demo[data_key][:,-1]
+
+                    hdf5_arr = demo[data_key][:,-1] * 255
+                    hdf5_arr = hdf5_arr.astype(np.uint8)
+                    # breakpoint()
                     # hdf5_arr = demo[data_key].transpose(0,2,3,1)
                     for hdf5_idx in range(hdf5_arr.shape[0]):
                         if len(futures) >= max_inflight_tasks:

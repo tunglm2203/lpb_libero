@@ -10,7 +10,7 @@ ALL_CONFIGS=(
   "bc_libero_diffusion_policy_cnn.yaml"
 )
 VAL_RATIO_ALL=(
-  0.2
+  0.1
   # 0.3
 #  0.8
 #  0.9
@@ -32,7 +32,7 @@ for VAL_RATIO in "${VAL_RATIO_ALL[@]}"; do
         training.resume=False \
         name="${EXP_NAME}" \
         logging.project="${PROJECT}" +logging.entity="${ENTITY}" \
-        training.rollout_every=5 training.checkpoint_every=100000 \
+        training.rollout_every=5 training.checkpoint_every=5 \
         task.dataset_path=${DATASET_PATH} \
         task.env_runner.dataset_path=${DATASET_PATH} \
         task.dataset.dataset_path=${DATASET_PATH} \
@@ -40,7 +40,7 @@ for VAL_RATIO in "${VAL_RATIO_ALL[@]}"; do
         task.rollout_dataset.mixed_bc=True task.rollout_dataset.filtered_bc=False \
         task.rollout_dataset.dataset_path=${ROLLOUT_DATA} \
         training.seed=${SEED} \
-        training.num_epochs=1000 \
+        training.num_epochs=500 \
         checkpoint.topk.k=1 \
         logging.mode="online" \
         hydra.run.dir='logs/pbrl/${task_name}/${logging.group}/${logging.name}'

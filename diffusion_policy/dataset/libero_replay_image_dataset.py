@@ -486,7 +486,8 @@ def _convert_robomimic_to_replay(
 
                 for episode_idx in range(len(demos)):
                     demo = demos[f"demo_{episode_idx}"]
-                    hdf5_arr = demo["obs"][key]
+                    hdf5_arr = demo["obs"][key][()] # shape (num_frames, 128,128,3)
+                    hdf5_arr = np.flip(hdf5_arr, axis=1)
                     for hdf5_idx in range(hdf5_arr.shape[0]):
                         if len(futures) >= max_inflight_tasks:
                             # limit number of inflight tasks

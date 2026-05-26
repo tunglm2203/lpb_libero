@@ -131,7 +131,10 @@ def main(args):
 
     # run eval
     cfg.task.env_runner._target_ = "diffusion_policy.env_runner.libero_image_sequential_runner.SequentialLiberoImageRunner"
-    task_dir = os.path.join(cfg.task.env_runner.dataset_path, args.dataset_name.split('.')[0])
+    task_dir = os.path.join('data/libero_10/libero_10', args.dataset_name.split('.')[0])
+
+    cfg.task.env_runner.max_steps = args.max_steps
+    cfg.task.env_runner.n_envs = 5
     env_runner = hydra.utils.instantiate(
         cfg.task.env_runner,
         output_dir=output_dir,
@@ -158,6 +161,7 @@ if __name__ == '__main__':
     parser.add_argument('--ntest', type=int, default=50)
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--dataset_name', type=str, default=None)
+    parser.add_argument('--max_steps', type=int, default=None)
 
     # Diffusion policy setting
     parser.add_argument('--noise_scheduler', type=str, default='ddpm')

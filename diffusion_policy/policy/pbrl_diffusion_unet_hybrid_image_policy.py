@@ -202,6 +202,7 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
         self.smooth_label = smooth_label    # 0 = disabled
         self.confidence_weight = confidence_weight
         self.unclip_win = unclip_win
+        # assert self.unclip_win == 1 and self.smooth_label == 0.1
         self.kwargs = kwargs
 
         # Parameters for preference learning

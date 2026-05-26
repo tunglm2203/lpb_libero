@@ -64,9 +64,14 @@ def env_rollout(cfg, env_runners, policy):
     step_log = {}
     if "libero" in cfg.task.name:
         cprint(f"Evaluating in LIBERO: {len(env_runners)}", "green", attrs=["bold"])
-        for task_name, env_runner in env_runners:
-            runner_log = env_runner.run(policy)
-            step_log.update(runner_log)
+        if isinstance(env_runners[0], tuple):
+            for task_name, env_runner in env_runners:
+                runner_log = env_runner.run(policy)
+                step_log.update(runner_log)
+        else:
+            for env_runner in env_runners:
+                runner_log = env_runner.run(policy)
+                step_log.update(runner_log)
 
         if cfg.checkpoint.topk.monitor_key == "test_mean_score":
             assert "test_mean_score" not in step_log

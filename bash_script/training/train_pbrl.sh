@@ -35,13 +35,14 @@ for VAL_RATIO in 0.1; do
         MIN_PROGRESS=0      # At least one segment must achieve 2% coverage
         N_DEMOS_FOR_PREF=10
         UNCLIP_WIN=1
+        SMOOTH_LABEL=0.1
 
 
         DATASET_PATH='data/libero_10/libero_10'   # ${task_name} will be replaced during run-time
         DATASET_1="logs/collect_data_200eps/libero_10/datacollect_diffusion_unet_libero_10"
         DATASET_2="logs/collect_data_200eps/libero_10/datacollect_diffusion_unet_libero_10"
 
-        EXP_NAME="${CPL_TYPE}_pseu_dpT_ExpD${USE_EXP_DATA_1}${USE_EXP_DATA_2}_Rew${DENSE_REWARD}_N${N_QUERIES}_L${SEG_SIZE}_bias${BIAS_REG}_Eq${IGNORE_EQUAL_PREF}_thr${EQUAL_THRESHOLD}_1ER${TRAIN_RATIO}_SFT${SFT_TYPE}${N_EPOCH_SFT}_strid${STRIDE}_segM${SEG_MARGIN}_${MIN_PROGRESS}_nD${N_DEMOS_FOR_PREF}_beta${CPL_BETA}_clip${CLIP_MARGIN}_unclipwin${UNCLIP_WIN}"
+        EXP_NAME="${CPL_TYPE}_pseu_dpT_ExpD${USE_EXP_DATA_1}${USE_EXP_DATA_2}_Rew${DENSE_REWARD}_N${N_QUERIES}_L${SEG_SIZE}_1ER${TRAIN_RATIO}_SFT${SFT_TYPE}${N_EPOCH_SFT}_segM${SEG_MARGIN}_nD${N_DEMOS_FOR_PREF}_beta${CPL_BETA}_clip${CLIP_MARGIN}_unclipwin${UNCLIP_WIN}_smooth${SMOOTH_LABEL}"
 
         for SEED in 42; do
           HYDRA_FULL_ERROR=1 CUDA_VISIBLE_DEVICES=${GPU} python train.py \
@@ -63,6 +64,7 @@ for VAL_RATIO in 0.1; do
             policy.beta=${CPL_BETA} \
             policy.clip_margin=${CLIP_MARGIN} \
             policy.unclip_win=${UNCLIP_WIN} \
+            policy.smooth_label=${SMOOTH_LABEL} \
             training.preference_learning.equal_threshold=${EQUAL_THRESHOLD} \
             training.n_epoch_sft=${N_EPOCH_SFT} training.sft_type=${SFT_TYPE} \
             training.stride_ratio=${STRIDE} \

@@ -1,11 +1,11 @@
 #!/bin/bash
 export PATH=/pfss/mlde/workspaces/mlde_wsp_MGPATH/miniconda3/envs/lpb/bin:$PATH
-
+export PYTHONPATH=/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero:$PYTHONPATH
 GPU=0
 
 # export MUJOCO_GL="glx"
 
-OUTDIR="eval_logs/LR6/cplkl_pseu_dpT_ExpD10_Rew1_N10000_L100_bias0.25_Eq0_thr0.05_1ER_SFTpos0_strid1_segM0.2_0_nD10_beta0.01_clip0.3_42/checkpoints/epoch=0450-test_mean_score=1.000.ckpt"
+OUTDIR="eval_logs/LR6/cplkl_pseu_dpT_ExpD10_Rew1_N20000_L100_bias0.25_Eq0_thr0.05_1ER_SFTpos0_strid1_segM0.2_0_nD10_beta0.01_clip0.3_unclipwin1/cplkl_pseu_dpT_ExpD10_Rew1_N20000_L100_bias0.25_Eq0_thr0.05_1ER_SFTpos0_strid1_segM0.2_0_nD10_beta0.01_clip0.3_unclipwin1_42/checkpoints/latest.ckpt"
 
 NOISE_SCHEDULER="ddpm"
 NUM_INFERENCE_STEPS=100
@@ -15,7 +15,7 @@ ALL_DATASETS=(
 )
 
 
-POLICY_CKPT="/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/logs/pbrl/libero_image/cplkl_pseu_dpT_ExpD10_Rew1_N10000_L100_bias0.25_Eq0_thr0.05_1ER_SFTpos0_strid1_segM0.2_0_nD10_beta0.01_clip0.3/cplkl_pseu_dpT_ExpD10_Rew1_N10000_L100_bias0.25_Eq0_thr0.05_1ER_SFTpos0_strid1_segM0.2_0_nD10_beta0.01_clip0.3_42/checkpoints/epoch=0450-test_mean_score=1.000.ckpt"
+POLICY_CKPT="/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/logs/pbrl/libero_image/cplkl_pseu_dpT_ExpD10_Rew1_N20000_L100_bias0.25_Eq0_thr0.05_1ER_SFTpos0_strid1_segM0.2_0_nD10_beta0.01_clip0.3_unclipwin1/cplkl_pseu_dpT_ExpD10_Rew1_N20000_L100_bias0.25_Eq0_thr0.05_1ER_SFTpos0_strid1_segM0.2_0_nD10_beta0.01_clip0.3_unclipwin1_42/checkpoints/latest.ckpt"
 
 for DATASET in "${ALL_DATASETS[@]}"; do
   TASK=${DATASET%.hdf5}
@@ -26,6 +26,7 @@ for DATASET in "${ALL_DATASETS[@]}"; do
       --noise_scheduler ${NOISE_SCHEDULER} --num_inference_steps ${NUM_INFERENCE_STEPS} \
       --dataset_name ${DATASET} \
       --ntest 50 \
-      --seed ${SEED}
+      --seed ${SEED} \
+      --max_steps 500
   done
 done

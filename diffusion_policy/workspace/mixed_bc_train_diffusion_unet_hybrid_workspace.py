@@ -91,6 +91,15 @@ class MixedBCTrainDiffusionUnetHybridWorkspace(BaseWorkspace):
         rollout_dataset = hydra.utils.instantiate(cfg.task.rollout_dataset)
         assert isinstance(rollout_dataset, BaseImageDataset)
 
+        # expert_image = dataset.replay_buffer.data.agentview_rgb[0]
+        # import matplotlib.pyplot as plt
+        # plt.imsave("/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/debugs/expert_images.png", expert_image)
+
+        # rollout_image = rollout_dataset.replay_buffer.data.agentview_rgb[0]
+        # import matplotlib.pyplot as plt
+        # plt.imsave("/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/debugs/rollout_images.png", rollout_image)
+        # breakpoint()
+
 
         # Concat datasets
         dataset = ConcatDataset([dataset, rollout_dataset])
@@ -141,6 +150,7 @@ class MixedBCTrainDiffusionUnetHybridWorkspace(BaseWorkspace):
             assert isinstance(env_runner, BaseImageRunner)
         else:
             env_runner = load_env_runner(cfg, self.output_dir)
+        # env_runners = load_libero_env_runner(cfg, self.output_dir, tasks_name)
 
         # configure logging
         wandb_run = wandb.init(
