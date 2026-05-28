@@ -804,5 +804,8 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
 
         if self.ignore_equal_pref:
             loss_metrics.update({'total_mask_not_equal': mask_not_equal_pref.sum()})
+
+        
+        breakpoint()
         return loss_total, loss_metrics
 

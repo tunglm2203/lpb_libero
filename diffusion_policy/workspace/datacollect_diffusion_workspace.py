@@ -94,7 +94,7 @@ class DatacollectDiffusionWorkspace(BaseWorkspace):
         #     task_dir=cfg.env_runner.dataset_path,
         #     dataset_path=cfg.env_runner.dataset_path,
         # )
-        env_runners = load_libero_env_runner(cfg, self.output_dir, tasks_name=['KITCHEN_SCENE3'])
+        env_runners = load_libero_env_runner(cfg, self.output_dir, tasks_name=['LIVING_ROOM_SCENE6'])
         # assert isinstance(env_runners, list[tuple[str, LiberoImageRunner]])
 
         # device transfer
@@ -146,8 +146,8 @@ class DatacollectDiffusionWorkspace(BaseWorkspace):
                         next_agentview_images.append(all_episodes['observations'][i][obs_idx + 1]['agentview_image'])
 
                 ep_data_grp = data_grp.create_group(f"episode_{i}")
-                ep_data_grp.create_dataset("agentview_image", data=np.array(agentview_images))
-                ep_data_grp.create_dataset("next_agentview_image", data=np.array(next_agentview_images))
+                ep_data_grp.create_dataset("agentview_image", data=np.array(agentview_images)*255)
+                ep_data_grp.create_dataset("next_agentview_image", data=np.array(next_agentview_images)*255)
                 ep_data_grp.create_dataset("actions", data=np.array(all_episodes['actions'][i][:first_succ_idx]))
                 ep_data_grp.create_dataset("rewards", data=np.array(all_episodes['rewards'][i][:first_succ_idx]))
                 ep_data_grp.create_dataset("dones", data=np.array(all_episodes['terminals'][i][:first_succ_idx])) # this may not contain any done

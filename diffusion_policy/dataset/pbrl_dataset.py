@@ -201,9 +201,10 @@ class PbrlDataset(BaseImageDataset):
 
                     votes, votes_2 = score_1, score_2
                     # Add preferred episode to the replay buffer
+
                     self.pref_replay_buffer.add_pref_episode(
                         data={
-                            'obs': episode_1['agentview_rgb'],          # First trajectory observations (shape T, obs_dim)
+                            'obs': episode_1['agentview_rgb'],          # 1, seg_size, 3, 128,128
                             'action': episode_1['action'],     # First trajectory actions (shape T, action_dim)
                             'obs_2': episode_2['agentview_rgb'],         # Second trajectory observations
                             'action_2': episode_2['action'],    # Second trajectory actions

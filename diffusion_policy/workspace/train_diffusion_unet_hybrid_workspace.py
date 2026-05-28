@@ -73,6 +73,13 @@ class TrainDiffusionUnetHybridWorkspace(BaseWorkspace):
         dataset: BaseImageDataset
         dataset = hydra.utils.instantiate(cfg.task.dataset)
         assert isinstance(dataset, BaseImageDataset)
+
+        for sample in dataset:
+            print(sample['obs']['agentview_rgb'].shape)
+            breakpoint()
+
+
+
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
         normalizer = dataset.get_normalizer()
 
@@ -169,7 +176,6 @@ class TrainDiffusionUnetHybridWorkspace(BaseWorkspace):
                         batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
                         if train_sampling_batch is None:
                             train_sampling_batch = batch
-
                         # compute loss
                         raw_loss = self.model.compute_loss(batch)
                         loss = raw_loss / cfg.training.gradient_accumulate_every

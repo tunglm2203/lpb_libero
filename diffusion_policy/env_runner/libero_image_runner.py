@@ -403,7 +403,7 @@ class LiberoImageRunner(BaseImageRunner):
                             for i in range(n_envs):
                                 obs_each_env = {}
                                 for key in obs:
-                                    obs_each_env[key] = obs[key][i]
+                                    obs_each_env[key] = obs[key][i][:1]
                                 collect_observations[chunk_idx * n_envs + i].append(obs_each_env)
                                 collect_actions[chunk_idx * n_envs + i].append(single_step_action[i, 0, ...])
                                 collect_terminals[chunk_idx * n_envs + i].append(done[i])

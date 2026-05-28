@@ -23,17 +23,17 @@ for VAL_RATIO in 0.1; do
         USE_EXP_DATA_1=1   # To sample left segments
         USE_EXP_DATA_2=0   # To sample right segments
         DENSE_REWARD=1
-        N_QUERIES=20000
+        N_QUERIES=2
         IGNORE_EQUAL_PREF=0
-        EQUAL_THRESHOLD=0.05
-        N_EPOCH_SFT=0
+        EQUAL_THRESHOLD=0.0
+        N_EPOCH_SFT=100
         SFT_TYPE="pos"   # positive, both
         STRIDE=1
-        CPL_BETA=0.01
+        CPL_BETA=0.03
         CLIP_MARGIN=0.3
-        SEG_MARGIN=0.2      # Segment must beat the other by 60% coverage to win
+        SEG_MARGIN=0.0      # Segment must beat the other by 60% coverage to win
         MIN_PROGRESS=0      # At least one segment must achieve 2% coverage
-        N_DEMOS_FOR_PREF=10
+        N_DEMOS_FOR_PREF=30
         UNCLIP_WIN=1
         SMOOTH_LABEL=0.1
 
@@ -69,7 +69,7 @@ for VAL_RATIO in 0.1; do
             training.n_epoch_sft=${N_EPOCH_SFT} training.sft_type=${SFT_TYPE} \
             training.stride_ratio=${STRIDE} \
             training.seed=${SEED} \
-            training.num_epochs=500 \
+            training.num_epochs=800 \
             training.pseudo_preference=True \
             task.pref_dataset.n_demos_for_preference=${N_DEMOS_FOR_PREF} \
             task.pref_dataset.seg_margin=${SEG_MARGIN} task.pref_dataset.min_progress=${MIN_PROGRESS} \

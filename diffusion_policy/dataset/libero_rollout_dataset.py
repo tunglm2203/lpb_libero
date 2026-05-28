@@ -430,7 +430,7 @@ def _convert_robomimic_to_replay(
             demo_key_data = demo[data_key][:].astype(np.float32)
 
             if data_key not in ['actions', 'language', 'rewards']:
-                demo_key_data = demo_key_data[:,-1]
+                demo_key_data = demo_key_data[:,0]
             
             if data_key == 'rewards':
                 rewards = np.zeros(len(demo_key_data)).astype(np.uint8)
@@ -523,8 +523,7 @@ def _convert_robomimic_to_replay(
 
                 for episode_idx in range(len(demos)):
                     demo = demos[f"episode_{episode_idx}"]
-
-                    hdf5_arr = demo[data_key][:,-1] * 255
+                    hdf5_arr = demo[data_key][:,0]
                     hdf5_arr = hdf5_arr.astype(np.uint8)
                     # breakpoint()
                     # hdf5_arr = demo[data_key].transpose(0,2,3,1)

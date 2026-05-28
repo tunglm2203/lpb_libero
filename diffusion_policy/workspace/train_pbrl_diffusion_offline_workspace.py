@@ -122,6 +122,7 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
                 replay_buffer_expert=replay_expert, dataset_expert_path=dataset_expert_path
             )
 
+            # breakpoint()
 
             # cut online groups
             votes_1, votes_2 = pref_dataset.pref_replay_buffer.meta['votes'], pref_dataset.pref_replay_buffer.meta['votes_2']
@@ -321,6 +322,7 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
                             'lr': lr_scheduler.get_last_lr()[0]
                         }
                         step_log.update(loss_metrics)
+
 
                         is_last_batch = (batch_idx == (len(train_dataloader) - 1))
                         if not is_last_batch:
