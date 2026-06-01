@@ -74,9 +74,9 @@ class TrainDiffusionUnetHybridWorkspace(BaseWorkspace):
         dataset = hydra.utils.instantiate(cfg.task.dataset)
         assert isinstance(dataset, BaseImageDataset)
 
-        for sample in dataset:
-            print(sample['obs']['agentview_rgb'].shape)
-            breakpoint()
+        # for sample in dataset:
+        #     print(sample['obs']['agentview_rgb'].shape)
+        #     breakpoint()
 
 
 

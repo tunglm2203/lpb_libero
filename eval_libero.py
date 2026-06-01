@@ -109,7 +109,8 @@ def main(args):
     policy.eval()
 
     ### Load normalizer
-    normalizer_path = os.path.join(os.path.dirname(os.path.dirname(cfg.checkpoint_dir)), "normalizer.pth")
+    print(cfg)
+    normalizer_path = os.path.join(os.path.dirname(os.path.dirname(args.checkpoint)), "normalizer.pth")
     print("loading normalizer from", normalizer_path)
     state_dict = torch.load(normalizer_path, map_location="cpu")
     policy.normalizer = LinearNormalizer()
@@ -129,17 +130,28 @@ def main(args):
     cprint(f"    Env:    Ta={cfg.task.env_runner.n_action_steps}, To={cfg.task.env_runner.n_obs_steps}", 'yellow', attrs=['bold'])
     cprint(f"    Policy: Ta={policy.n_action_steps}, To={policy.n_obs_steps}, Tp={policy.horizon}", 'yellow', attrs=['bold'])
 
-    # run eval
-    cfg.task.env_runner._target_ = "diffusion_policy.env_runner.libero_image_sequential_runner.SequentialLiberoImageRunner"
-    task_dir = os.path.join('data/libero_10/libero_10', args.dataset_name.split('.')[0])
 
-    cfg.task.env_runner.max_steps = args.max_steps
-    cfg.task.env_runner.n_envs = 5
-    env_runner = hydra.utils.instantiate(
-        cfg.task.env_runner,
-        output_dir=output_dir,
-        task_dir=os.path.join(task_dir, args.dataset_name)
-    )
+    # run eval
+    if 'transport' in args.checkpoint:
+        cfg.task.env_runner.max_steps = args.max_steps
+        cfg.task.env_runner.n_envs = 5
+        env_runner = hydra.utils.instantiate(
+            cfg.task.env_runner,
+            output_dir=output_dir,
+            dataset_path='/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/transport/transport_ph_demo_v141_20_perc.hdf5'
+        )
+    else:
+        breakpoint()
+        cfg.task.env_runner._target_ = "diffusion_policy.env_runner.libero_image_sequential_runner.SequentialLiberoImageRunner"
+        task_dir = os.path.join('data/libero_10/libero_10', args.dataset_name.split('.')[0])
+
+        cfg.task.env_runner.max_steps = args.max_steps
+        cfg.task.env_runner.n_envs = 5
+        env_runner = hydra.utils.instantiate(
+            cfg.task.env_runner,
+            output_dir=output_dir,
+            task_dir=os.path.join(task_dir, args.dataset_name)
+        )
     runner_log = env_runner.run(policy)
     results = {}
     for key, value in runner_log.items():

@@ -9,6 +9,8 @@ import shutil
 import copy
 import json
 import hashlib
+import traceback
+
 from filelock import FileLock
 from threadpoolctl import threadpool_limits
 import concurrent.futures
@@ -353,8 +355,9 @@ def _convert_robomimic_to_replay(store, shape_meta, dataset_path, abs_action, ro
                 # make sure we can successfully decode
                 _ = zarr_arr[zarr_idx]
                 return True
-            except Exception as e:
-                return False
+            except Exception:
+                traceback.print_exc()
+                raise   
         
         with tqdm(total=n_steps*len(rgb_keys), desc="Loading image data", mininterval=1.0) as pbar:
             # one chunk per thread, therefore no synchronization needed
