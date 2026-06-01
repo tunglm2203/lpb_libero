@@ -63,6 +63,27 @@ def stack_last_n_obs(all_obs, n_steps):
         result[:start_idx] = result[start_idx]
     return result
 
+def get_env_domain_for_multistep_wrapper(env):
+    if env.__class__.__name__ == "VideoRecordingWrapper":
+        if "robomimic" in env.env.__class__.__name__.lower():
+            env_domain = "robomimic"
+        elif "pusht" in env.env.__class__.__name__.lower():
+            env_domain = "pusht"
+        elif "kitchen" in env.env.__class__.__name__.lower():
+            env_domain = "kitchen"
+        else:
+            raise NotImplementedError()
+    else:
+        if "robomimic" in env.__class__.__name__.lower():
+            env_domain = "robomimic"
+        elif "pusht" in env.__class__.__name__.lower():
+            env_domain = "pusht"
+        elif "kitchen" in env.__class__.__name__.lower():
+            env_domain = "kitchen"
+        else:
+            raise NotImplementedError()
+
+    return env_domain
 
 class MultiStepWrapper(gym.Wrapper):
     def __init__(self, 
@@ -85,6 +106,8 @@ class MultiStepWrapper(gym.Wrapper):
         self.reward = list()
         self.done = list()
         self.info = defaultdict(lambda : deque(maxlen=n_obs_steps+1))
+        self.all_infos = list()
+        self.step_elapsed = 0
     
     def reset(self):
         """Resets the environment using kwargs."""
@@ -94,8 +117,15 @@ class MultiStepWrapper(gym.Wrapper):
         self.reward = list()
         self.done = list()
         self.info = defaultdict(lambda : deque(maxlen=self.n_obs_steps+1))
+        self.all_infos = list()
 
         obs = self._get_obs(self.n_obs_steps)
+        # env_domain = get_env_domain_for_multistep_wrapper(self.env)
+        # if env_domain == "robomimic":
+        init_info = self.env.env.env.get_state()
+        success = self.env.env.env.is_success()["task"]
+        init_info.update({"success": float(success)})
+        self.all_infos.append(init_info)
         return obs
 
     def step(self, action):
@@ -116,6 +146,7 @@ class MultiStepWrapper(gym.Wrapper):
                 done = True
             self.done.append(done)
             self._add_info(info)
+            self.all_infos.append(info)
 
         observation = self._get_obs(self.n_obs_steps)
         reward = aggregate(self.reward, self.reward_agg_method)
@@ -160,3 +191,6 @@ class MultiStepWrapper(gym.Wrapper):
         for k, v in self.info.items():
             result[k] = list(v)
         return result
+
+    def get_all_infos(self):
+        return self.all_infos

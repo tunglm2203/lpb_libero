@@ -30,6 +30,9 @@ hydra:
 
 task:
   env_runner:
+    render_hw:
+      - 140
+      - 140
     _target_: diffusion_policy.env_runner.libero_image_runner.LiberoImageRunner
     abs_action: true
     crf: 22

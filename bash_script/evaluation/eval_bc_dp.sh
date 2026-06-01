@@ -17,9 +17,9 @@ ALL_DATASETS=(
 
 
 PROJECT_DIR=/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero
-POLICY_CKPT="${PROJECT_DIR}/logs/reproduce/transport_image/None/2026.06.01_03.13.13_train_diffusion_unet_hybrid_transport_image/checkpoints/100.ckpt"
+POLICY_CKPT="${PROJECT_DIR}/logs/reproduce/transport_image/None/2026.06.01_03.13.13_train_diffusion_unet_hybrid_transport_image/checkpoints/200.ckpt"
 
-OUTDIR="${PROJECT_DIR}/eval_logs/transport/my_transport_policy/checkpoints/100.ckpt"
+OUTDIR="${PROJECT_DIR}/eval_logs/transport/my_transport_policy/checkpoints/200.ckpt"
 
 for DATASET in "${ALL_DATASETS[@]}"; do
   TASK=${DATASET%.hdf5}

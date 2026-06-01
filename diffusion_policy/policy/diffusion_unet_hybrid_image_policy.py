@@ -473,6 +473,8 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, 
                 lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
+            # breakpoint()
+
             nobs_features = self.obs_encoder(this_nobs)
             # reshape back to B, Do
             global_cond = nobs_features.reshape(batch_size, -1)

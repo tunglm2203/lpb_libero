@@ -63,9 +63,12 @@ class RobomimicImageRunner(BaseImageRunner):
             past_action=False,
             abs_action=False,
             tqdm_interval_sec=5.0,
-            n_envs=None
+            n_envs=None,
+            collect_data=False,
         ):
         super().__init__(output_dir)
+
+        self.collect_data = collect_data
 
         if n_envs is None:
             n_envs = n_train + n_test
@@ -85,6 +88,9 @@ class RobomimicImageRunner(BaseImageRunner):
         if abs_action:
             env_meta['env_kwargs']['controller_configs']['control_delta'] = False
             rotation_transformer = RotationTransformer('axis_angle', 'rotation_6d')
+        if self.collect_data:
+            env_meta['env_kwargs']['reward_shaping'] = True
+
 
         def env_fn():
             robomimic_env = create_env(
@@ -112,7 +118,7 @@ class RobomimicImageRunner(BaseImageRunner):
                         thread_count=1
                     ),
                     file_path=None,
-                    steps_per_render=steps_per_render
+                    steps_per_render=steps_per_render if not self.collect_data else 1
                 ),
                 n_obs_steps=n_obs_steps,
                 n_action_steps=n_action_steps,
@@ -173,8 +179,10 @@ class RobomimicImageRunner(BaseImageRunner):
                     env.env.video_recoder.stop()
                     env.env.file_path = None
                     if enable_render:
-                        filename = pathlib.Path(output_dir).joinpath(
-                            'media', wv.util.generate_id() + ".mp4")
+                        if self.collect_data:
+                            filename = pathlib.Path(output_dir).joinpath('media', f"episode_{seed - test_start_seed}.mp4")
+                        else:
+                            filename = pathlib.Path(output_dir).joinpath('media', f"{seed}_" + wv.util.generate_id() + ".mp4")
                         filename.parent.mkdir(parents=False, exist_ok=True)
                         filename = str(filename)
                         env.env.file_path = filename
@@ -248,6 +256,17 @@ class RobomimicImageRunner(BaseImageRunner):
         # allocate data
         all_video_paths = [None] * n_inits
         all_rewards = [None] * n_inits
+        all_infos = [None] * n_inits
+
+
+        if self.collect_data:
+            collect_observations = [[] for _ in range(n_inits)]
+            collect_actions = [[] for _ in range(n_inits)]
+            collect_rewards = [[] for _ in range(n_inits)]
+            collect_terminals = [[] for _ in range(n_inits)]
+            collect_infos = [[] for _ in range(n_inits)]
+        else:
+            collect_observations = collect_actions = collect_rewards = collect_terminals = collect_infos =  None
 
         for chunk_idx in range(n_chunks):
             start = chunk_idx * n_envs
@@ -307,17 +326,61 @@ class RobomimicImageRunner(BaseImageRunner):
                 if self.abs_action:
                     env_action = self.undo_transform_action(action)
 
-                obs, reward, done, info = env.step(env_action)
-                done = np.all(done)
-                past_action = action
+                if self.collect_data:
+                    for a_idx in range(self.n_action_steps):
+                        single_step_action = env_action[:, a_idx:a_idx + 1, :]
+                        obs, reward, done, info = env.step(single_step_action)
 
-                # update pbar
-                pbar.update(action.shape[1])
+                        single_step_action_raw = action[:, a_idx:a_idx + 1, :]
+
+                        for i in range(n_envs):
+                            obs_each_env = {}
+                            for key in obs:
+                                obs_each_env[key] = obs[key][i, 0]
+                            collect_observations[chunk_idx * n_envs + i].append(obs_each_env)
+                            collect_actions[chunk_idx * n_envs + i].append(single_step_action_raw[i, 0, ...])
+                            collect_terminals[chunk_idx * n_envs + i].append(done[i])
+
+                    # query_mask = 1 - done  # 1 means query, 0 means no query
+                    # all_calls_until_done[start:end] = all_calls_until_done[start:end] + query_mask[0:end - start]
+                    done = np.all(done)
+                    past_action = action
+                    # update pbar
+                    pbar.update(action.shape[1])
+
+                else:
+                    obs, reward, done, info = env.step(env_action)
+                    # query_mask = 1 - done  # 1 means query, 0 means no query
+                    # all_calls_until_done[start:end] = all_calls_until_done[start:end] + query_mask[0:end - start]
+                    done = np.all(done)
+                    past_action = action
+
+                    # update pbar
+                    pbar.update(action.shape[1])
+
+                # obs, reward, done, info = env.step(env_action)
+                # done = np.all(done)
+                # past_action = action
+
+                # # update pbar
+                # pbar.update(action.shape[1])
             pbar.close()
+
+            # reward = env.call('get_attr', 'reward')
+            # # all_steps_until_done[this_global_slice] = env.call('get_attr', 'step_elapsed')[this_local_slice]
+            # all_infos = env.call('get_attr', 'all_infos')    
+            # breakpoint()
 
             # collect data for this round
             all_video_paths[this_global_slice] = env.render()[this_local_slice]
             all_rewards[this_global_slice] = env.call('get_attr', 'reward')[this_local_slice]
+            # all_steps_until_done[this_global_slice] = env.call('get_attr', 'step_elapsed')[this_local_slice]
+            all_infos[this_global_slice] = env.call('get_attr', 'all_infos')[this_local_slice]
+            if self.collect_data:
+                for i in range(n_envs):
+                    episode_reward = np.array(all_rewards[chunk_idx * n_envs + i])
+                    collect_rewards[chunk_idx * n_envs + i].extend(episode_reward)
+                    collect_infos[chunk_idx * n_envs + i].extend(all_infos[chunk_idx * n_envs + i])
         # clear out video buffer
         _ = env.reset()
         
@@ -351,7 +414,28 @@ class RobomimicImageRunner(BaseImageRunner):
             value = np.mean(value)
             log_data[name] = value
 
-        return log_data
+        if self.collect_data:
+            final_observations, final_actions, final_rewards, final_terminals, final_infos = [], [], [], [], []
+
+            for i in range(n_inits):
+                idx = np.argmax(collect_terminals[i]) + 1  # Find that first done
+                final_observations.append(collect_observations[i][:idx + 1])  # include final obs of last action, thus +1
+                final_actions.append(collect_actions[i][:idx])
+                final_rewards.append(collect_rewards[i][:idx])
+                final_terminals.append(collect_terminals[i][:idx])
+                final_infos.append(collect_infos[i][:idx + 1])  # include final obs of last action, thus +1
+
+            episode_data = {
+                'observations': final_observations,
+                'actions': final_actions,
+                'rewards': final_rewards,
+                'terminals': final_terminals,
+                'infos': final_infos,
+            }
+            return log_data, episode_data
+        else:
+            return log_data
+
 
     def undo_transform_action(self, action):
         raw_shape = action.shape

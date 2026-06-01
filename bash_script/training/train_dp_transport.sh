@@ -2,7 +2,7 @@
 export PATH=/pfss/mlde/workspaces/mlde_wsp_MGPATH/miniconda3/envs/lpb/bin:$PATH
 GPU=0
 
-PROJECT="GBC-LIBERO-PBRL-2026"
+PROJECT="GBC-PBRL-2026"
 ENTITY="Robotics_VLA"
 
 export MUJOCO_GL="egl"

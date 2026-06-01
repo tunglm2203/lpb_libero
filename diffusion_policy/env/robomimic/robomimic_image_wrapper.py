@@ -149,6 +149,10 @@ class RobomimicImageWrapper(gym.Env):
     
     def step(self, action):
         raw_obs, reward, done, info = self.env.step(action)
+        robot_state = self.env.get_state()
+        success = self.env.is_success()["task"]
+        info.update(robot_state)
+        info.update({"success": float(success)})
         self.idx += 1
         obs = self.get_observation(raw_obs)
         return obs, reward, done, info

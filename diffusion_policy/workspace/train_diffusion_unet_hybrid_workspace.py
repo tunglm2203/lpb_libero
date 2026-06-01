@@ -75,7 +75,7 @@ class TrainDiffusionUnetHybridWorkspace(BaseWorkspace):
         assert isinstance(dataset, BaseImageDataset)
 
         # for sample in dataset:
-        #     print(sample['obs']['agentview_rgb'].shape)
+        #     # print(sample['obs']['agentview_rgb'].shape)
         #     breakpoint()
 
 
