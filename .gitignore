@@ -8,3 +8,5 @@ data/
 eval_logs
 cache
 debugs
+*.png
+*.jpg

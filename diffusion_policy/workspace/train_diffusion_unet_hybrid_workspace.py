@@ -236,7 +236,6 @@ class TrainDiffusionUnetHybridWorkspace(BaseWorkspace):
                         runner_log = env_rollout(cfg, env_runner, policy)
                     # log all
                     if runner_log:
-                        breakpoint()
                         step_log.update(runner_log)
 
                 # run validation

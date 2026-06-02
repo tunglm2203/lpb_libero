@@ -90,10 +90,10 @@ if __name__ == "__main__":
     ## Inference
     policy.reset()
     obs = {
-        'high_images': np.zeros((1, 2, 3, 480, 640)),
-        'wrist_left_images': np.zeros((1, 2, 3, 480, 640)),
-        'wrist_right_images': np.zeros((1, 2, 3, 480, 640)),
-        'states': np.zeros((1, 2, 14))
+        'high_images': np.random.randint(0, 255, (1, 2, 3, 480, 640), dtype=np.uint8),
+        'wrist_left_images': np.random.randint(0, 255, (1, 2, 3, 480, 640), dtype=np.uint8),
+        'wrist_right_images': np.random.randint(0, 255, (1, 2, 3, 480, 640), dtype=np.uint8),
+        'states': np.zeros((1, 2, 14), dtype=np.float32)
     }
     action_dict = policy.predict_action(obs)
     action = action_dict['action'].detach().to('cpu').numpy()
