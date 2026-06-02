@@ -112,7 +112,9 @@ class TrainDiffusionUnetHybridWorkspace(BaseWorkspace):
                 model=self.ema_model)
 
         # configure env
-        if "libero" not in cfg.task.name:
+        if 'aloha' in cfg.task.name:
+            pass
+        elif "libero" not in cfg.task.name:
             env_runner: BaseImageRunner
             env_runner = hydra.utils.instantiate(
                 cfg.task.env_runner,
@@ -120,7 +122,6 @@ class TrainDiffusionUnetHybridWorkspace(BaseWorkspace):
             assert isinstance(env_runner, BaseImageRunner)
         else:
             env_runner = load_env_runner(cfg, self.output_dir)
-
         # configure logging
         wandb_run = wandb.init(
             dir=str(self.output_dir),
@@ -226,12 +227,17 @@ class TrainDiffusionUnetHybridWorkspace(BaseWorkspace):
 
                 # run rollout
                 if (self.epoch % cfg.training.rollout_every) == 0:
-                    if 'libero' not in cfg.task.name:
+                    if 'aloha' in cfg.task.name:
+                        runner_log = {}
+                        pass
+                    elif 'libero' not in cfg.task.name:
                         runner_log = env_runner.run(policy)
                     else:
                         runner_log = env_rollout(cfg, env_runner, policy)
                     # log all
-                    step_log.update(runner_log)
+                    if runner_log:
+                        breakpoint()
+                        step_log.update(runner_log)
 
                 # run validation
                 # if (self.epoch % cfg.training.val_every) == 0:
