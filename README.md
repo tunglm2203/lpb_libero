@@ -31,4 +31,14 @@ bash bash_script/training/train_pbrl.sh
 ```
 
 
+### inference
+
+```
+python aloha_inference.py
+```
+
+
+
+
+
 
