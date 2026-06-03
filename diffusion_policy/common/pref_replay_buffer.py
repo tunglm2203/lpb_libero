@@ -269,70 +269,39 @@ class PrefReplayBuffer:
         """
         Get a pair of episodes by index, including observation and action sequences for both trajectories.
         """
-        if copy:
-            return {
-                'robot0_eef_pos': self.root['data']['robot0_eef_pos'][idx].copy(),
-                'robot0_eef_pos_2': self.root['data']['robot0_eef_pos_2'][idx].copy(),
-                'robot0_eef_quat': self.root['data']['robot0_eef_quat'][idx].copy(),
-                'robot0_eef_quat_2': self.root['data']['robot0_eef_quat_2'][idx].copy(),
-                'robot0_eye_in_hand_image': self.root['data']['robot0_eye_in_hand_image'][idx].copy(),
-                'robot0_eye_in_hand_image_2': self.root['data']['robot0_eye_in_hand_image_2'][idx].copy(),
-                'robot0_gripper_qpos': self.root['data']['robot0_gripper_qpos'][idx].copy(),
-                'robot0_gripper_qpos_2': self.root['data']['robot0_gripper_qpos_2'][idx].copy(),
-                'robot1_eef_pos': self.root['data']['robot1_eef_pos'][idx].copy(),
-                'robot1_eef_pos_2': self.root['data']['robot1_eef_pos_2'][idx].copy(),
-                'robot1_eef_quat': self.root['data']['robot1_eef_quat'][idx].copy(),
-                'robot1_eef_quat_2': self.root['data']['robot1_eef_quat_2'][idx].copy(),
-                'robot1_eye_in_hand_image': self.root['data']['robot1_eye_in_hand_image'][idx].copy(),
-                'robot1_eye_in_hand_image_2': self.root['data']['robot1_eye_in_hand_image_2'][idx].copy(),
-                'robot1_gripper_qpos': self.root['data']['robot1_gripper_qpos'][idx].copy(),
-                'robot1_gripper_qpos_2': self.root['data']['robot1_gripper_qpos_2'][idx].copy(),
-                'shouldercamera0_image': self.root['data']['shouldercamera0_image'][idx].copy(),
-                'shouldercamera0_image_2': self.root['data']['shouldercamera0_image_2'][idx].copy(),
-                'shouldercamera1_image': self.root['data']['shouldercamera1_image'][idx].copy(),
-                'shouldercamera1_image_2': self.root['data']['shouldercamera1_image_2'][idx].copy(),
-                'action': self.root['data']['action'][idx].copy(),
-                'action_2': self.root['data']['action_2'][idx].copy(),
 
+        if copy:
+            data = {}
+            for key in self.root['data'].keys():
+                if key in ['abs_action', 'rewards']:
+                    continue
+                data[key] = self.root['data'][key][idx].copy()
+
+            data.update({
                 'votes': self.root['meta']['votes'][idx].copy(),
                 'votes_2': self.root['meta']['votes_2'][idx].copy(),
                 'length': self.root['meta']['length'][idx].copy(),
                 'length_2': self.root['meta']['length_2'][idx].copy(),
                 'beta_priori': self.root['meta']['beta_priori'][idx].copy(),
                 'beta_priori_2': self.root['meta']['beta_priori_2'][idx].copy(),
-            }
+            })
+            return data
         else:
-            return {
-                'robot0_eef_pos': self.root['data']['robot0_eef_pos'][idx],
-                'robot0_eef_pos_2': self.root['data']['robot0_eef_pos_2'][idx],
-                'robot0_eef_quat': self.root['data']['robot0_eef_quat'][idx],
-                'robot0_eef_quat_2': self.root['data']['robot0_eef_quat_2'][idx],
-                'robot0_eye_in_hand_image': self.root['data']['robot0_eye_in_hand_image'][idx],
-                'robot0_eye_in_hand_image_2': self.root['data']['robot0_eye_in_hand_image_2'][idx],
-                'robot0_gripper_qpos': self.root['data']['robot0_gripper_qpos'][idx],
-                'robot0_gripper_qpos_2': self.root['data']['robot0_gripper_qpos_2'][idx],
-                'robot1_eef_pos': self.root['data']['robot1_eef_pos'][idx],
-                'robot1_eef_pos_2': self.root['data']['robot1_eef_pos_2'][idx],
-                'robot1_eef_quat': self.root['data']['robot1_eef_quat'][idx],
-                'robot1_eef_quat_2': self.root['data']['robot1_eef_quat_2'][idx],
-                'robot1_eye_in_hand_image': self.root['data']['robot1_eye_in_hand_image'][idx],
-                'robot1_eye_in_hand_image_2': self.root['data']['robot1_eye_in_hand_image_2'][idx],
-                'robot1_gripper_qpos': self.root['data']['robot1_gripper_qpos'][idx],
-                'robot1_gripper_qpos_2': self.root['data']['robot1_gripper_qpos_2'][idx],
-                'shouldercamera0_image': self.root['data']['shouldercamera0_image'][idx],
-                'shouldercamera0_image_2': self.root['data']['shouldercamera0_image_2'][idx],
-                'shouldercamera1_image': self.root['data']['shouldercamera1_image'][idx],
-                'shouldercamera1_image_2': self.root['data']['shouldercamera1_image_2'][idx],
-                'action': self.root['data']['action'][idx],
-                'action_2': self.root['data']['action_2'][idx],
+            data = {}
+            for key in self.root['data'].keys():
+                if key in ['abs_action', 'rewards']:
+                    continue
+                data[key] = self.root['data'][key][idx]
 
+            data.update({
                 'votes': self.root['meta']['votes'][idx],
                 'votes_2': self.root['meta']['votes_2'][idx],
                 'length': self.root['meta']['length'][idx],
                 'length_2': self.root['meta']['length_2'][idx],
                 'beta_priori': self.root['meta']['beta_priori'][idx],
                 'beta_priori_2': self.root['meta']['beta_priori_2'][idx],
-            }
+            })
+            return data
 
     def get_episode_slice(self, idx):
         """

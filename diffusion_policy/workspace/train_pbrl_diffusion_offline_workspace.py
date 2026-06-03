@@ -77,6 +77,8 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
             tasks_name = ['LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate_demo']
         elif 'transport' in cfg.task.dataset_path:
             tasks_name = ['transport']
+        elif 'aloha' in cfg.task.dataset_path:
+            tasks_name = ['aloha']
 
         for task_name in tasks_name:
             print(f"Processing task: {task_name}")
@@ -85,10 +87,11 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
                 dataset_path = os.path.join(cfg.task.dataset_path, task_name)
                 dataset1_path = os.path.join(cfg.task.dataset_1.dataset_path, task_name)
                 dataset2_path = os.path.join(cfg.task.dataset_2.dataset_path, task_name)
-            elif 'transport' in cfg.task.dataset_path:
+            elif 'transport' in cfg.task.dataset_path or 'aloha' in cfg.task.dataset_path:
                 dataset_path = cfg.task.dataset_path
                 dataset1_path = cfg.task.dataset_1.dataset_path
                 dataset2_path = cfg.task.dataset_2.dataset_path
+
 
             # configure dataset
             dataset_1: BaseImageDataset
@@ -97,6 +100,7 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
             else:
                 dataset_1 = hydra.utils.instantiate(cfg.task.dataset_1)
             assert isinstance(dataset_1, BaseImageDataset)
+
 
 
             # expert_image = dataset_1.replay_buffer.data.agentview_rgb[0]
@@ -397,20 +401,20 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
                     if cfg.checkpoint.save_last_snapshot:
                         self.save_snapshot()
 
-                    # sanitize metric names
-                    metric_dict = dict()
-                    for key, value in step_log.items():
-                        new_key = key.replace('/', '_')
-                        metric_dict[new_key] = value
-                    metric_dict['epoch'] = self.epoch
+                    # # sanitize metric names
+                    # metric_dict = dict()
+                    # for key, value in step_log.items():
+                    #     new_key = key.replace('/', '_')
+                    #     metric_dict[new_key] = value
+                    # metric_dict['epoch'] = self.epoch
 
-                    # We can't copy the last checkpoint here
-                    # since save_checkpoint uses threads.
-                    # therefore at this point the file might have been empty!
-                    topk_ckpt_path = topk_manager.get_ckpt_path(metric_dict)
+                    # # We can't copy the last checkpoint here
+                    # # since save_checkpoint uses threads.
+                    # # therefore at this point the file might have been empty!
+                    # topk_ckpt_path = topk_manager.get_ckpt_path(metric_dict)
 
-                    if topk_ckpt_path is not None:
-                        self.save_checkpoint(path=topk_ckpt_path)
+                    # if topk_ckpt_path is not None:
+                    #     self.save_checkpoint(path=topk_ckpt_path)
 
                 # ========= eval end for this epoch ==========
                 policy.train()

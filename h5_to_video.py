@@ -33,7 +33,6 @@ def save_demo_videos(
 
         demo = f["data"][demo_name]
 
-        breakpoint()
 
         # shape: (T, H, W, 3)
         frames = demo["obs"][image_key][:]
@@ -48,7 +47,7 @@ def save_demo_videos(
         )
 
         for frame in frames:
-            frame = np.flipud(frame)
+            # frame = np.flipud(frame)
 
             # ensure uint8
             if frame.dtype != np.uint8:
@@ -65,20 +64,22 @@ def save_demo_videos(
 
 if __name__ == "__main__":
 
-    expert_dir = '/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/libero_10/libero_10/LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate_demo'
-    file_path = os.path.join(expert_dir, 'LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate_demo.hdf5')
+    # expert_dir = '/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/libero_10/libero_10/LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate_demo'
+    # file_path = os.path.join(expert_dir, 'LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate_demo.hdf5')
+    # video_dir = os.path.join(expert_dir, 'videos')
+
+
+    # expert_dir = '/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/transport'
+    # file_path = os.path.join(expert_dir, 'transport_ph_demo_v141_20_perc.hdf5')
+    # video_dir = os.path.join(expert_dir, 'videos')
+
+    expert_dir = '/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/aloha/short_folding_demo'
+    file_path = os.path.join(expert_dir, 'short_folding_demo.hdf5')
     video_dir = os.path.join(expert_dir, 'videos')
-
-
-    expert_dir = '/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/transport'
-    file_path = os.path.join(expert_dir, 'transport_ph_demo_v141_20_perc.hdf5')
-    video_dir = os.path.join(expert_dir, 'videos')
-
-
 
     save_demo_videos(
         file_path=file_path,
         output_dir=video_dir,
-        image_key="agentview",
+        image_key="high_images",
         fps=20,
     )

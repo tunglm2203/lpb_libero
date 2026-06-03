@@ -8,12 +8,11 @@ ENTITY="Robotics_VLA"
 GPU=0
 
 ALL_CONFIGS=(
-  "pbrl_aloha_diffusion_policy_cnn.yaml"
-  # "pbrl_transport_diffusion_policy_cnn.yaml"
+  "pbrl_transport_diffusion_policy_cnn.yaml"
   # "pbrl_libero_diffusion_policy_cnn.yaml"
 )
 
-for VAL_RATIO in 0.1; do
+for VAL_RATIO in 0.4; do
   TRAIN_RATIO=$(echo "1 - $VAL_RATIO" | bc -l)
   for CONFIG_NAME in "${ALL_CONFIGS[@]}"; do
     
@@ -24,16 +23,16 @@ for VAL_RATIO in 0.1; do
 
         USE_EXP_DATA_1=1   # To sample left segments
         USE_EXP_DATA_2=0   # To sample right segments
-        DENSE_REWARD=1
-        N_QUERIES=2
+        DENSE_REWARD=0
+        N_QUERIES=15000
         IGNORE_EQUAL_PREF=0
         EQUAL_THRESHOLD=0.0
-        N_EPOCH_SFT=100
+        N_EPOCH_SFT=0
         SFT_TYPE="pos"   # positive, both
         STRIDE=1
-        CPL_BETA=0.03
+        CPL_BETA=0.01
         CLIP_MARGIN=0.3
-        SEG_MARGIN=0.0      # Segment must beat the other by 60% coverage to win
+        SEG_MARGIN=0.4      # Segment must beat the other by 60% coverage to win
         MIN_PROGRESS=0      # At least one segment must achieve 2% coverage
         N_DEMOS_FOR_PREF=30
         UNCLIP_WIN=1
@@ -46,15 +45,10 @@ for VAL_RATIO in 0.1; do
         # checkpoint_dir=/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/logs/offficial/checkpoints/160.pth
 
 
-        # DATASET_PATH='data/transport/transport_ph_demo_v141_20_perc.hdf5'   # ${task_name} will be replaced during run-time
-        # DATASET_1="logs/transport_collect_data_10eps/_/collect_transport.hdf5"
-        # DATASET_2="logs/transport_collect_data_10eps/_/collect_transport.hdf5"
-        # checkpoint_dir=logs/transport_base_policy/checkpoints/270.ckpt
-
-        DATASET_PATH='data/aloha/fold_shirt/fold_shirt_demo.hdf5'   # ${task_name} will be replaced during run-time
-        DATASET_1="data/aloha/fold_shirt/short_folding_rollout.hdf5"
-        DATASET_2="data/aloha/fold_shirt/short_folding_rollout.hdf5"
-        checkpoint_dir=logs/reproduce/aloha_image/None/2026.06.02_03.50.28_train_diffusion_unet_hybrid_aloha_image/checkpoints/40.ckpt
+        DATASET_PATH='data/transport/transport_ph_demo_v141_20_perc.hdf5'   # ${task_name} will be replaced during run-time
+        DATASET_1="logs/transport_collect_data_200eps/_/collect_transport.hdf5"
+        DATASET_2="logs/transport_collect_data_200eps/_/collect_transport.hdf5"
+        checkpoint_dir=logs/transport_base_policy/checkpoints/270.ckpt
 
         EXP_NAME="${CPL_TYPE}_pseu_dpT_ExpD${USE_EXP_DATA_1}${USE_EXP_DATA_2}_Rew${DENSE_REWARD}_N${N_QUERIES}_L${SEG_SIZE}_1ER${TRAIN_RATIO}_SFT${SFT_TYPE}${N_EPOCH_SFT}_segM${SEG_MARGIN}_nD${N_DEMOS_FOR_PREF}_beta${CPL_BETA}_clip${CLIP_MARGIN}_unclipwin${UNCLIP_WIN}_smooth${SMOOTH_LABEL}"
 
@@ -89,7 +83,7 @@ for VAL_RATIO in 0.1; do
             task.pref_dataset.seg_margin=${SEG_MARGIN} task.pref_dataset.min_progress=${MIN_PROGRESS} \
             logging.mode="online" \
             hydra.run.dir='logs/pbrl/${task_name}/${logging.group}/${logging.name}' \
-            task.env_runner.max_steps=10
+            task.env_runner.max_steps=700
         done
       done
     done

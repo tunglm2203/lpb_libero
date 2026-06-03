@@ -136,6 +136,9 @@ task:
         shape:
         - 14
       obs:
+        rewards:
+          shape:
+          - 1
         states:
           shape:
           - 14
@@ -167,6 +170,9 @@ task:
       shape:
       - 14
     obs:
+      rewards:
+        shape:
+        - 1
       states:
         shape:
         - 14
@@ -222,7 +228,7 @@ task:
     num_queries: 5
     gamma: ${gamma}
     gpu_device: ${training.device}
-    dense_reward: ${task.dense_reward}
+    dense_reward: false
     task_name: ${task.name}
     pseudo_preference: True
     feature_extractor: r3m_resnet18

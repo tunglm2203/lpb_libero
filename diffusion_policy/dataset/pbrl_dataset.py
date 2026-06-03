@@ -203,31 +203,13 @@ class PbrlDataset(BaseImageDataset):
                     votes, votes_2 = score_1, score_2
                     # Add preferred episode to the replay buffer
 
+                    data_pref = {}
+                    for key in episode_1.keys():
+                        data_pref[key] = episode_1[key]
+                        data_pref[key + '_2'] = episode_2[key]
+
                     self.pref_replay_buffer.add_pref_episode(
-                        data={
-                            'action': episode_1['action'],
-                            'action_2': episode_2['action'],
-                            'robot0_eef_pos': episode_1['robot0_eef_pos'],     # First trajectory actions (shape T, action_dim)
-                            'robot0_eef_pos_2': episode_2['robot0_eef_pos'],    # Second trajectory actions
-                            'robot0_eef_quat': episode_1['robot0_eef_quat'],
-                            'robot0_eef_quat_2': episode_2['robot0_eef_quat'],
-                            'robot0_eye_in_hand_image': episode_1['robot0_eye_in_hand_image'],  # End-effector position
-                            'robot0_eye_in_hand_image_2': episode_2['robot0_eye_in_hand_image'],  # End-effector position
-                            'robot0_gripper_qpos': episode_1['robot0_gripper_qpos'],  # End-effector orientation
-                            'robot0_gripper_qpos_2': episode_2['robot0_gripper_qpos'],  # End-effector orientation
-                            'robot1_eef_pos': episode_1['robot1_eef_pos'],  # Joint states
-                            'robot1_eef_pos_2': episode_2['robot1_eef_pos'],  # Joint states
-                            'robot1_eef_quat': episode_1['robot1_eef_quat'],  # Joint states
-                            'robot1_eef_quat_2': episode_2['robot1_eef_quat'],  # Joint states
-                            'robot1_eye_in_hand_image': episode_1['robot1_eye_in_hand_image'],  # Joint states
-                            'robot1_eye_in_hand_image_2': episode_2['robot1_eye_in_hand_image'],  # Joint states
-                            'robot1_gripper_qpos': episode_1['robot1_gripper_qpos'],  # Joint states
-                            'robot1_gripper_qpos_2': episode_2['robot1_gripper_qpos'],  # Joint states
-                            'shouldercamera0_image': episode_1['shouldercamera0_image'],  # Joint states
-                            'shouldercamera0_image_2': episode_2['shouldercamera0_image'],  # Joint states
-                            'shouldercamera1_image': episode_1['shouldercamera1_image'],  # Joint states
-                            'shouldercamera1_image_2': episode_2['shouldercamera1_image'],  # Joint states
-                        },
+                        data=data_pref,
                         meta_data={
                             'votes': votes,                   # Vote for the first trajectory
                             'votes_2': votes_2,               # Vote for the second trajectory
@@ -244,31 +226,13 @@ class PbrlDataset(BaseImageDataset):
                 # end
             else:
                 # Add preferred episode to the replay buffer
+                data_pref = {}
+                for key in episode_1.keys():
+                    data_pref[key] = episode_1[key]
+                    data_pref[key + '_2'] = episode_2[key]
+
                 self.pref_replay_buffer.add_pref_episode(
-                    data={
-                        'abs_action': episode_1['abs_action'],          # 1, seg_size, 3, 128,128
-                        'abs_action_2': episode_2['abs_action'],         # Second trajectory observations
-                        'robot0_eef_pos': episode_1['robot0_eef_pos'],     # First trajectory actions (shape T, action_dim)
-                        'robot0_eef_pos_2': episode_2['robot0_eef_pos'],    # Second trajectory actions
-                        'robot0_eef_quat': episode_1['robot0_eef_quat'],
-                        'robot0_eef_quat_2': episode_2['robot0_eef_quat'],
-                        'robot0_eye_in_hand_image': episode_1['robot0_eye_in_hand_image'],  # End-effector position
-                        'robot0_eye_in_hand_image_2': episode_2['robot0_eye_in_hand_image'],  # End-effector position
-                        'robot0_gripper_qpos': episode_1['robot0_gripper_qpos'],  # End-effector orientation
-                        'robot0_gripper_qpos_2': episode_2['robot0_gripper_qpos'],  # End-effector orientation
-                        'robot1_eef_pos': episode_1['robot1_eef_pos'],  # Joint states
-                        'robot1_eef_pos_2': episode_2['robot1_eef_pos'],  # Joint states
-                        'robot1_eef_quat': episode_1['robot1_eef_quat'],  # Joint states
-                        'robot1_eef_quat_2': episode_2['robot1_eef_quat'],  # Joint states
-                        'robot1_eye_in_hand_image': episode_1['robot1_eye_in_hand_image'],  # Joint states
-                        'robot1_eye_in_hand_image_2': episode_2['robot1_eye_in_hand_image'],  # Joint states
-                        'robot1_gripper_qpos': episode_1['robot1_gripper_qpos'],  # Joint states
-                        'robot1_gripper_qpos_2': episode_2['robot1_gripper_qpos'],  # Joint states
-                        'shouldercamera0_image': episode_1['shouldercamera0_image'],  # Joint states
-                        'shouldercamera0_image_2': episode_2['shouldercamera0_image'],  # Joint states
-                        'shouldercamera1_image': episode_1['shouldercamera1_image'],  # Joint states
-                        'shouldercamera1_image_2': episode_2['shouldercamera1_image'],  # Joint states
-                    },
+                    data=data_pref,
                     meta_data={
                         'votes': votes,                   # Vote for the first trajectory
                         'votes_2': votes_2,               # Vote for the second trajectory

@@ -687,6 +687,7 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
                 noise_2 = noisy_trajectory_2 = pred_2 = None
 
             if use_bc:
+                breakpoint()
                 if sft_type == "pos":
                     imitation_loss_1 = torch.norm((pred_1 - noise_1) * loss_mask, dim=-1) ** 2
                     imitation_loss += torch.sum(imitation_loss_1 * step_mask_1, dim=-1)
