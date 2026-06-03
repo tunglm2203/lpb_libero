@@ -33,6 +33,7 @@ for VAL_RATIO in "${VAL_RATIO_ALL[@]}"; do
         training.resume=False \
         name="${EXP_NAME}" \
         logging.project="${PROJECT}" +logging.entity="${ENTITY}" \
+        logging.name="${EXP_NAME}" \
         training.rollout_every=5 training.checkpoint_every=10 \
         task.dataset_path=${DATASET_PATH} \
         task.env_runner.dataset_path=${DATASET_PATH} \

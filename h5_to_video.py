@@ -33,6 +33,8 @@ def save_demo_videos(
 
         demo = f["data"][demo_name]
 
+        breakpoint()
+
         # shape: (T, H, W, 3)
         frames = demo["obs"][image_key][:]
 
@@ -68,10 +70,15 @@ if __name__ == "__main__":
     video_dir = os.path.join(expert_dir, 'videos')
 
 
+    expert_dir = '/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/transport'
+    file_path = os.path.join(expert_dir, 'transport_ph_demo_v141_20_perc.hdf5')
+    video_dir = os.path.join(expert_dir, 'videos')
+
+
 
     save_demo_videos(
         file_path=file_path,
         output_dir=video_dir,
-        image_key="agentview_rgb",
+        image_key="agentview",
         fps=20,
     )

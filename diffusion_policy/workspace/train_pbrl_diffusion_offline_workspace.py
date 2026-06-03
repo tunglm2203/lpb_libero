@@ -26,6 +26,7 @@ from diffusion_policy.workspace.base_workspace import BaseWorkspace
 from diffusion_policy.policy.diffusion_unet_hybrid_image_policy import DiffusionUnetHybridImagePolicy
 from diffusion_policy.env_runner.load_env import load_libero_env_runner, env_rollout
 from diffusion_policy.env_runner.libero_image_runner import LiberoImageRunner
+from diffusion_policy.env_runner.base_image_runner import BaseImageRunner
 from diffusion_policy.dataset.base_dataset import BaseImageDataset
 from diffusion_policy.common.checkpoint_util import TopKCheckpointManager
 from diffusion_policy.common.json_logger import JsonLogger
@@ -69,19 +70,34 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
 
     def prepare_preference_dataset(self, cfg):
 
-        tasks_name = [name for name in os.listdir(cfg.task.dataset_path) if os.path.isdir(os.path.join(cfg.task.dataset_path, name))][-1:]
-        tasks_name = ['LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate_demo']
         all_pref_datasets = {}
+        
+        if 'libero' in cfg.task.dataset_path:
+            tasks_name = [name for name in os.listdir(cfg.task.dataset_path) if os.path.isdir(os.path.join(cfg.task.dataset_path, name))][-1:]
+            tasks_name = ['LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate_demo']
+        elif 'transport' in cfg.task.dataset_path:
+            tasks_name = ['transport']
 
         for task_name in tasks_name:
             print(f"Processing task: {task_name}")
+
+            if 'libero' in cfg.task.dataset_path:
+                dataset_path = os.path.join(cfg.task.dataset_path, task_name)
+                dataset1_path = os.path.join(cfg.task.dataset_1.dataset_path, task_name)
+                dataset2_path = os.path.join(cfg.task.dataset_2.dataset_path, task_name)
+            elif 'transport' in cfg.task.dataset_path:
+                dataset_path = cfg.task.dataset_path
+                dataset1_path = cfg.task.dataset_1.dataset_path
+                dataset2_path = cfg.task.dataset_2.dataset_path
+
             # configure dataset
             dataset_1: BaseImageDataset
             if cfg.training.use_expert_data_1:
-                dataset_1 = hydra.utils.instantiate(cfg.task.dataset, dataset_path=os.path.join(cfg.task.dataset_path, task_name))
+                dataset_1 = hydra.utils.instantiate(cfg.task.dataset, dataset_path=dataset_path)
             else:
                 dataset_1 = hydra.utils.instantiate(cfg.task.dataset_1)
             assert isinstance(dataset_1, BaseImageDataset)
+
 
             # expert_image = dataset_1.replay_buffer.data.agentview_rgb[0]
             # import matplotlib.pyplot as plt
@@ -91,12 +107,12 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
             dataset_2: BaseImageDataset
             if cfg.training.use_expert_data_2:
                 breakpoint()
-                dataset_2 = hydra.utils.instantiate(cfg.task.dataset, dataset_path=os.path.join(cfg.task.dataset_path, task_name))
+                dataset_2 = hydra.utils.instantiate(cfg.task.dataset, dataset_path=dataset_path)
             else:
                 # breakpoint()
-
-                dataset_2 = hydra.utils.instantiate(cfg.task.dataset_2, shape_meta=cfg.task.dataset.shape_meta, dataset_path=os.path.join(cfg.task.dataset_2.dataset_path, task_name))
+                dataset_2 = hydra.utils.instantiate(cfg.task.dataset_2, shape_meta=cfg.task.dataset.shape_meta, dataset_path=dataset2_path)
             assert isinstance(dataset_2, BaseImageDataset)
+
 
             # rollout_image = dataset_2.replay_buffer.data.agentview_rgb[0]
             # import matplotlib.pyplot as plt
@@ -117,12 +133,10 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
             pref_dataset = hydra.utils.instantiate(
                 cfg.task.pref_dataset,
                 replay_buffer_1=dataset_1.replay_buffer, replay_buffer_2=dataset_2.replay_buffer,
-                dataset_1_path=os.path.join(dataset_1.dataset_path, task_name), dataset_2_path=os.path.join(dataset_2.dataset_path, task_name),
+                dataset_1_path=dataset_path, dataset_2_path=dataset2_path,
                 pseudo_preference=cfg.training.pseudo_preference,
                 replay_buffer_expert=replay_expert, dataset_expert_path=dataset_expert_path
             )
-
-            # breakpoint()
 
             # cut online groups
             votes_1, votes_2 = pref_dataset.pref_replay_buffer.meta['votes'], pref_dataset.pref_replay_buffer.meta['votes_2']
@@ -184,8 +198,16 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
                 model=self.ema_model)
 
         # configure env runner
-        env_runners = load_libero_env_runner(cfg, self.output_dir, tasks_name)
-
+        if 'aloha' in cfg.task.name:
+            pass
+        elif "libero" not in cfg.task.name:
+            env_runner: BaseImageRunner
+            env_runner = hydra.utils.instantiate(
+                cfg.task.env_runner,
+                output_dir=self.output_dir)
+            assert isinstance(env_runner, BaseImageRunner)
+        else:
+            env_runner = load_env_runner(cfg, self.output_dir)
 
         # configure logging
         wandb_run = wandb.init(
@@ -200,7 +222,14 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
         )
         if cfg.training.pseudo_preference:
             # log wandb about
-            task_name = 'LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate_demo'
+            if 'libero' in cfg.task.name:
+                task_name = 'LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate_demo'
+            elif 'transport' in cfg.task.name:
+                task_name = 'transport'
+            elif 'aloha' in cfg.task.name:
+                task_name = 'aloha'
+            else:
+                raise ValueError(f"Unknown task name: {cfg.task.name}")
             wandb_run.log({
                 "pseudo_preference/retained_pairs": all_pref_datasets[task_name][0].retained_pairs,
                 "pseudo_preference/accuracy": all_pref_datasets[task_name][0].accuracy,
@@ -348,11 +377,16 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
 
                 # run rollout
                 if (self.epoch % cfg.training.rollout_every) == 0 or self.epoch == cfg.training.num_epochs - 1:
-                    # for task_name, env_runner in env_runners:
-                    #     runner_log = env_runner.run(policy)
-                    #     # log all
-                    #     step_log.update(runner_log)
-                    step_log = env_rollout(cfg, env_runners, policy)
+                    if 'aloha' in cfg.task.name:
+                        runner_log = {}
+                        pass
+                    elif 'libero' not in cfg.task.name:
+                        runner_log = env_runner.run(policy)
+                    else:
+                        runner_log = env_rollout(cfg, env_runner, policy)
+                    # log all
+                    if runner_log:
+                        step_log.update(runner_log)
 
 
                 # checkpoint

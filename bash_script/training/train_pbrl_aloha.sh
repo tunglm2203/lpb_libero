@@ -9,8 +9,6 @@ GPU=0
 
 ALL_CONFIGS=(
   "pbrl_aloha_diffusion_policy_cnn.yaml"
-  # "pbrl_transport_diffusion_policy_cnn.yaml"
-  # "pbrl_libero_diffusion_policy_cnn.yaml"
 )
 
 for VAL_RATIO in 0.1; do
@@ -39,17 +37,6 @@ for VAL_RATIO in 0.1; do
         UNCLIP_WIN=1
         SMOOTH_LABEL=0.1
 
-
-        # DATASET_PATH='data/libero_10/libero_10'   # ${task_name} will be replaced during run-time
-        # DATASET_1="logs/collect_data_200eps/libero_10/datacollect_diffusion_unet_libero_10"
-        # DATASET_2="logs/collect_data_200eps/libero_10/datacollect_diffusion_unet_libero_10"
-        # checkpoint_dir=/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/logs/offficial/checkpoints/160.pth
-
-
-        # DATASET_PATH='data/transport/transport_ph_demo_v141_20_perc.hdf5'   # ${task_name} will be replaced during run-time
-        # DATASET_1="logs/transport_collect_data_10eps/_/collect_transport.hdf5"
-        # DATASET_2="logs/transport_collect_data_10eps/_/collect_transport.hdf5"
-        # checkpoint_dir=logs/transport_base_policy/checkpoints/270.ckpt
 
         DATASET_PATH='data/aloha/fold_shirt/fold_shirt_demo.hdf5'   # ${task_name} will be replaced during run-time
         DATASET_1="data/aloha/fold_shirt/short_folding_rollout.hdf5"

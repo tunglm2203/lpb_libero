@@ -156,16 +156,20 @@ class PrefReplayBuffer:
         """
         Add a pair of episodes (obs/action for each trajectory) along with metadata (votes).
         """
-        assert 'obs' in data and 'obs_2' in data, "obs and obs_2 keys are required"
-        assert 'action' in data and 'action_2' in data, "action and action_2 keys are required"
+        # assert 'obs' in data and 'obs_2' in data, "obs and obs_2 keys are required"
+        # assert 'action' in data and 'action_2' in data, "action and action_2 keys are required"
+
+        all_keys = data.keys()
+        key_traj1 = [k for k in all_keys if not k.endswith('_2')]
+        key_traj2 = [k for k in all_keys if k.endswith('_2')]
         
         is_zarr = isinstance(self.root, zarr.Group)
         curr_len = len(self.root['meta']['votes'])
-        episode_length = len(data['obs'])
+        episode_length = len(data[key_traj1[0]])
         new_len = curr_len + 1
 
         # Add trajectory 1
-        for key in ['obs', 'action', 'language', 'ee_pos', 'ee_ori', 'joint_states']:
+        for key in key_traj1:
             # Create the new shape to accommodate all time steps
             value = data[key]
 
@@ -192,7 +196,7 @@ class PrefReplayBuffer:
 
 
         # Add trajectory 2 (obs_2, action_2)
-        for key in ['obs_2', 'action_2', 'language_2', 'ee_pos_2', 'ee_ori_2', 'joint_states_2']:
+        for key in key_traj2:
             value = data[key]
             # Create the new shape to accommodate all time steps
             new_shape = (new_len,) + (episode_length,) + data[key].shape[1:]  # This will set (new_len, T, dim)
@@ -267,10 +271,29 @@ class PrefReplayBuffer:
         """
         if copy:
             return {
-                'obs': self.root['data']['obs'][idx].copy(),
+                'robot0_eef_pos': self.root['data']['robot0_eef_pos'][idx].copy(),
+                'robot0_eef_pos_2': self.root['data']['robot0_eef_pos_2'][idx].copy(),
+                'robot0_eef_quat': self.root['data']['robot0_eef_quat'][idx].copy(),
+                'robot0_eef_quat_2': self.root['data']['robot0_eef_quat_2'][idx].copy(),
+                'robot0_eye_in_hand_image': self.root['data']['robot0_eye_in_hand_image'][idx].copy(),
+                'robot0_eye_in_hand_image_2': self.root['data']['robot0_eye_in_hand_image_2'][idx].copy(),
+                'robot0_gripper_qpos': self.root['data']['robot0_gripper_qpos'][idx].copy(),
+                'robot0_gripper_qpos_2': self.root['data']['robot0_gripper_qpos_2'][idx].copy(),
+                'robot1_eef_pos': self.root['data']['robot1_eef_pos'][idx].copy(),
+                'robot1_eef_pos_2': self.root['data']['robot1_eef_pos_2'][idx].copy(),
+                'robot1_eef_quat': self.root['data']['robot1_eef_quat'][idx].copy(),
+                'robot1_eef_quat_2': self.root['data']['robot1_eef_quat_2'][idx].copy(),
+                'robot1_eye_in_hand_image': self.root['data']['robot1_eye_in_hand_image'][idx].copy(),
+                'robot1_eye_in_hand_image_2': self.root['data']['robot1_eye_in_hand_image_2'][idx].copy(),
+                'robot1_gripper_qpos': self.root['data']['robot1_gripper_qpos'][idx].copy(),
+                'robot1_gripper_qpos_2': self.root['data']['robot1_gripper_qpos_2'][idx].copy(),
+                'shouldercamera0_image': self.root['data']['shouldercamera0_image'][idx].copy(),
+                'shouldercamera0_image_2': self.root['data']['shouldercamera0_image_2'][idx].copy(),
+                'shouldercamera1_image': self.root['data']['shouldercamera1_image'][idx].copy(),
+                'shouldercamera1_image_2': self.root['data']['shouldercamera1_image_2'][idx].copy(),
                 'action': self.root['data']['action'][idx].copy(),
-                'obs_2': self.root['data']['obs_2'][idx].copy(),
                 'action_2': self.root['data']['action_2'][idx].copy(),
+
                 'votes': self.root['meta']['votes'][idx].copy(),
                 'votes_2': self.root['meta']['votes_2'][idx].copy(),
                 'length': self.root['meta']['length'][idx].copy(),
@@ -280,24 +303,35 @@ class PrefReplayBuffer:
             }
         else:
             return {
-                'obs': self.root['data']['obs'][idx],
+                'robot0_eef_pos': self.root['data']['robot0_eef_pos'][idx],
+                'robot0_eef_pos_2': self.root['data']['robot0_eef_pos_2'][idx],
+                'robot0_eef_quat': self.root['data']['robot0_eef_quat'][idx],
+                'robot0_eef_quat_2': self.root['data']['robot0_eef_quat_2'][idx],
+                'robot0_eye_in_hand_image': self.root['data']['robot0_eye_in_hand_image'][idx],
+                'robot0_eye_in_hand_image_2': self.root['data']['robot0_eye_in_hand_image_2'][idx],
+                'robot0_gripper_qpos': self.root['data']['robot0_gripper_qpos'][idx],
+                'robot0_gripper_qpos_2': self.root['data']['robot0_gripper_qpos_2'][idx],
+                'robot1_eef_pos': self.root['data']['robot1_eef_pos'][idx],
+                'robot1_eef_pos_2': self.root['data']['robot1_eef_pos_2'][idx],
+                'robot1_eef_quat': self.root['data']['robot1_eef_quat'][idx],
+                'robot1_eef_quat_2': self.root['data']['robot1_eef_quat_2'][idx],
+                'robot1_eye_in_hand_image': self.root['data']['robot1_eye_in_hand_image'][idx],
+                'robot1_eye_in_hand_image_2': self.root['data']['robot1_eye_in_hand_image_2'][idx],
+                'robot1_gripper_qpos': self.root['data']['robot1_gripper_qpos'][idx],
+                'robot1_gripper_qpos_2': self.root['data']['robot1_gripper_qpos_2'][idx],
+                'shouldercamera0_image': self.root['data']['shouldercamera0_image'][idx],
+                'shouldercamera0_image_2': self.root['data']['shouldercamera0_image_2'][idx],
+                'shouldercamera1_image': self.root['data']['shouldercamera1_image'][idx],
+                'shouldercamera1_image_2': self.root['data']['shouldercamera1_image_2'][idx],
                 'action': self.root['data']['action'][idx],
-                'obs_2': self.root['data']['obs_2'][idx],
                 'action_2': self.root['data']['action_2'][idx],
+
                 'votes': self.root['meta']['votes'][idx],
                 'votes_2': self.root['meta']['votes_2'][idx],
                 'length': self.root['meta']['length'][idx],
                 'length_2': self.root['meta']['length_2'][idx],
                 'beta_priori': self.root['meta']['beta_priori'][idx],
                 'beta_priori_2': self.root['meta']['beta_priori_2'][idx],
-                'language': self.root['data']['language'][idx],
-                'language_2': self.root['data']['language_2'][idx],
-                'ee_ori': self.root['data']['ee_ori'][idx],
-                'ee_ori_2': self.root['data']['ee_ori_2'][idx],
-                'ee_pos': self.root['data']['ee_pos'][idx],
-                'ee_pos_2': self.root['data']['ee_pos_2'][idx],
-                'joint_states': self.root['data']['joint_states'][idx],
-                'joint_states_2': self.root['data']['joint_states_2'][idx],
             }
 
     def get_episode_slice(self, idx):

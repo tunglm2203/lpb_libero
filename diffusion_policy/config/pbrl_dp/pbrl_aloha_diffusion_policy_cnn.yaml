@@ -1,5 +1,9 @@
-_target_: diffusion_policy.workspace.train_diffusion_unet_hybrid_workspace.TrainDiffusionUnetHybridWorkspace
+_target_: diffusion_policy.workspace.train_pbrl_diffusion_offline_workspace.PbrlDiffusionWorkspace
+
+gamma: 0.999 
+pred_action_steps_only: False
 checkpoint_dir: null
+
 checkpoint:
   save_last_ckpt: true
   save_last_snapshot: false
@@ -29,8 +33,8 @@ logging:
   group: null
   id: null
   mode: online
-  name: ${now:%Y.%m.%d}_${now:%H.%M.%S}_train_diffusion_unet_hybrid_aloha_image_mixed
-  project: diffusion_policy_aloha_mixed_data_baseline
+  name: ${now:%Y.%m.%d}_${now:%H.%M.%S}_pbrl_aloha
+  project: null
   resume: true
   tags:
   - train_diffusion_unet_hybrid
@@ -54,7 +58,7 @@ optimizer:
   weight_decay: 1.0e-06
 past_action_visible: false
 policy:
-  _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_policy.DiffusionUnetHybridImagePolicy
+  _target_: diffusion_policy.policy.pbrl_diffusion_unet_hybrid_image_policy.PbrlDiffusionUnetHybridImagePolicy
   cond_predict_scale: true
   crop_shape:
   - 128
@@ -108,32 +112,16 @@ policy:
         - 480
         - 640
         type: rgb
-shape_meta:
-  action:
-    shape:
-    - 14
-  obs:
-    states:
-      shape:
-      - 14
-    high_images:
-      shape:
-      - 3
-      - 480
-      - 640
-      type: rgb
-    wrist_left_images:
-      shape:
-      - 3
-      - 480
-      - 640
-      type: rgb
-    wrist_right_images:
-      shape:
-      - 3
-      - 480
-      - 640
-      type: rgb
+  beta: 0.01
+  bias_reg: 0.25
+  bc_coef: 1.0
+  ignore_equal_pref: False
+  gamma: ${gamma}
+  clip_margin: 0.3
+  smooth_label: 0.0
+  confidence_weight: False
+  unclip_win: False
+
 task:
   dataset:
     _target_: diffusion_policy.dataset.aloha_replay_image_dataset.AlohaReplayImageDataset
@@ -171,90 +159,8 @@ task:
           type: rgb
     use_cache: true
     val_ratio: 0.0
-  rollout_dataset:
-    _target_: diffusion_policy.dataset.aloha_replay_image_dataset.AlohaReplayImageDataset
-    dataset_path: /pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/aloha/fold_shirt/fold_shirt_rollout.hdf5
-    horizon: 32
-    n_obs_steps: 2
-    pad_after: 7
-    pad_before: 1
-    seed: 42
-    shape_meta:
-      action:
-        shape:
-        - 14
-      obs:
-        states:
-          shape:
-          - 14
-        high_images:
-          shape:
-          - 3
-          - 480
-          - 640
-          type: rgb
-        wrist_left_images:
-          shape:
-          - 3
-          - 480
-          - 640
-          type: rgb
-        wrist_right_images:
-          shape:
-          - 3
-          - 480
-          - 640
-          type: rgb
-    use_cache: true
-    val_ratio: 0.0
-    mixed_bc: false
-    filtered_bc: false
   dataset_path: /pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/aloha/fold_shirt/fold_shirt_demo.hdf5
   dataset_type: mh
-  env_runner:
-    _target_: diffusion_policy.env_runner.robomimic_image_runner.RobomimicImageRunner
-    crf: 22
-    dataset_path: /pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/aloha/fold_shirt/fold_shirt_demo.hdf5
-    fps: 10
-    max_steps: 700
-    n_action_steps: 15
-    n_envs: 28
-    n_obs_steps: 2
-    n_test: 50
-    n_test_vis: 4
-    n_train: 6
-    n_train_vis: 2
-    past_action: false
-    render_obs_key: shouldercamera0_image
-    shape_meta:
-      action:
-        shape:
-        - 14
-      obs:
-        states:
-          shape:
-          - 14
-        high_images:
-          shape:
-          - 3
-          - 480
-          - 640
-          type: rgb
-        wrist_left_images:
-          shape:
-          - 3
-          - 480
-          - 640
-          type: rgb
-        wrist_right_images:
-          shape:
-          - 3
-          - 480
-          - 640
-          type: rgb
-    test_start_seed: 100000
-    tqdm_interval_sec: 1.0
-    train_start_idx: 0
   name: aloha_image
   shape_meta:
     action:
@@ -283,6 +189,49 @@ task:
         - 640
         type: rgb
   task_name: aloha
+
+  dataset_1:
+    _target_: diffusion_policy.dataset.aloha_replay_image_dataset.AlohaReplayImageDataset
+    dataset_path: ${training.dataset_2_dir}
+    horizon: ${task.dataset.horizon}
+    pad_before: ${task.dataset.pad_before}
+    pad_after: ${task.dataset.pad_after}
+    n_obs_steps: ${task.dataset.n_obs_steps}
+    use_cache: true
+    seed: 42
+    val_ratio: ${task.dataset.val_ratio}
+    
+
+  dataset_2:
+    _target_: diffusion_policy.dataset.aloha_replay_image_dataset.AlohaReplayImageDataset
+    dataset_path: ${training.dataset_2_dir}
+    horizon: ${task.dataset.horizon}
+    pad_before: ${task.dataset.pad_before}
+    pad_after: ${task.dataset.pad_after}
+    n_obs_steps: ${task.dataset.n_obs_steps}
+    use_cache: true
+    seed: 42
+    val_ratio: ${task.dataset.val_ratio}
+    
+
+  pref_dataset:
+    _target_: diffusion_policy.dataset.pbrl_dataset.PbrlDataset
+    sequence_length: 100
+    val_ratio_data1: 0
+    val_ratio_data2: 0
+    num_queries: 5
+    gamma: ${gamma}
+    gpu_device: ${training.device}
+    dense_reward: ${task.dense_reward}
+    task_name: ${task.name}
+    pseudo_preference: True
+    feature_extractor: r3m_resnet18
+    context_num: 3
+    seg_margin: 0.5
+    min_progress: 0.0
+    n_demos_for_preference: 10
+
+  
 task_name: aloha_image
 training:
   checkpoint_every: 20
@@ -301,6 +250,20 @@ training:
   tqdm_interval_sec: 1.0
   use_ema: true
   val_every: 1
+
+  cpl_loss_type: 'cplkl'   # 'cpl'
+  use_expert_data_1: False
+  use_expert_data_2: False
+  n_epoch_sft: 0
+  sft_type: "pos"
+  stride_ratio: 0.5
+  pseudo_preference: True
+  dataset_1_dir: null
+  dataset_2_dir: null
+  preference_learning:
+    num_rounds: 1
+    equal_threshold: 0.05
+    
 val_dataloader:
   batch_size: 64
   num_workers: 8

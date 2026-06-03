@@ -168,6 +168,7 @@ class RobomimicImageRunner(BaseImageRunner):
         with h5py.File(dataset_path, 'r') as f:
             for i in range(n_train):
                 train_idx = train_start_idx + i
+                train_seed = train_idx
                 enable_render = i < n_train_vis
                 init_state = f[f'data/demo_{train_idx}/states'][0]
 
@@ -180,9 +181,9 @@ class RobomimicImageRunner(BaseImageRunner):
                     env.env.file_path = None
                     if enable_render:
                         if self.collect_data:
-                            filename = pathlib.Path(output_dir).joinpath('media', f"episode_{seed - test_start_seed}.mp4")
+                            filename = pathlib.Path(output_dir).joinpath('media', f"episode_{train_seed - test_start_seed}.mp4")
                         else:
-                            filename = pathlib.Path(output_dir).joinpath('media', f"{seed}_" + wv.util.generate_id() + ".mp4")
+                            filename = pathlib.Path(output_dir).joinpath('media', f"{train_seed}_" + wv.util.generate_id() + ".mp4")
                         filename.parent.mkdir(parents=False, exist_ok=True)
                         filename = str(filename)
                         env.env.file_path = filename
@@ -331,14 +332,14 @@ class RobomimicImageRunner(BaseImageRunner):
                         single_step_action = env_action[:, a_idx:a_idx + 1, :]
                         obs, reward, done, info = env.step(single_step_action)
 
-                        single_step_action_raw = action[:, a_idx:a_idx + 1, :]
+                        # single_step_action_raw = action[:, a_idx:a_idx + 1, :]
 
                         for i in range(n_envs):
                             obs_each_env = {}
                             for key in obs:
                                 obs_each_env[key] = obs[key][i, 0]
                             collect_observations[chunk_idx * n_envs + i].append(obs_each_env)
-                            collect_actions[chunk_idx * n_envs + i].append(single_step_action_raw[i, 0, ...])
+                            collect_actions[chunk_idx * n_envs + i].append(single_step_action[i, 0, ...])
                             collect_terminals[chunk_idx * n_envs + i].append(done[i])
 
                     # query_mask = 1 - done  # 1 means query, 0 means no query

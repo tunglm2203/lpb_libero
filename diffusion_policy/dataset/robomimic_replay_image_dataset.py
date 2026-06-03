@@ -319,6 +319,7 @@ def _convert_robomimic_to_replay(store, shape_meta, dataset_path, abs_action, ro
         _ = meta_group.array('episode_ends', episode_ends, 
             dtype=np.int64, compressor=None, overwrite=True)
 
+
         # save lowdim data
         extra_keys = ['action', 'abs_action']
         for key in tqdm(lowdim_keys + extra_keys, desc="Loading lowdim data"):
@@ -327,15 +328,20 @@ def _convert_robomimic_to_replay(store, shape_meta, dataset_path, abs_action, ro
                 data_key = 'actions'
             elif key == 'abs_action':
                 data_key = 'abs_actions'
+            elif key == 'rewards':
+                data_key = 'rewards'
             this_data = list()
             for i in range(len(demos)):
                 demo = demos[f'demo_{i}']
                 this_data.append(demo[data_key][:].astype(np.float32))
             this_data = np.concatenate(this_data, axis=0)
+
+            if key == 'rewards':
+                this_data = this_data[..., None]
             if key == 'action' or key == 'abs_action':
                 this_data = _convert_actions(
                     raw_actions=this_data,
-                    abs_action='abs' in data_key,
+                    abs_action=abs_action,
                     rotation_transformer=rotation_transformer
                 )
             else:

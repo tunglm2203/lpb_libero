@@ -1,17 +1,17 @@
 from huggingface_hub import HfApi
 
-repo_id = "ducido/LIVING_ROOM_SCENE6_rollout_200eps"
-local_folder = "/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/logs/collect_data_200eps/libero_10/datacollect_diffusion_unet_libero_10/LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate_demo"
+repo_id = "ducido/dp_aloha_40epoch"
+local_folder = "/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/logs/reproduce/aloha_image/None/2026.06.02_03.50.28_train_diffusion_unet_hybrid_aloha_image"
 
 api = HfApi()
-api.create_repo(repo_id=repo_id, repo_type="dataset", private=False, exist_ok=True)
+api.create_repo(repo_id=repo_id, repo_type="model", private=False, exist_ok=True)
 
 api.upload_folder(
     folder_path=local_folder,
     repo_id=repo_id,
-    repo_type="dataset",
+    repo_type="model",
     commit_message="Initial commit",
     # optional filters
-    ignore_patterns=["**/__pycache__/**", "**/*.tmp", "**/.ipynb_checkpoints/**"],
+    ignore_patterns=["**/__pycache__/**", "**/*.tmp", "**/.ipynb_checkpoints/**", "wandb/**"],
     # allow_patterns=["**/*.pt","**/*.json"]  # alternatively, whitelist
 )

@@ -45,6 +45,8 @@ class RobomimicImageWrapper(gym.Env):
 
         observation_space = spaces.Dict()
         for key, value in shape_meta['obs'].items():
+            if key == 'rewards':
+                continue
             shape = value['shape']
             min_value, max_value = -1, 1
             if key.endswith('image'):

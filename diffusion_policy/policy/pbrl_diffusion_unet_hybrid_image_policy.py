@@ -593,6 +593,9 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
     def compute_loss_cpl_kl(
             self, batch, epoch, ref_model, n_epoch_sft=0, sft_type="pos", stride=10, equal_pref_threshold=0.05
     ):
+        all_keys = batch.keys()
+        key_traj1 = [k for k in all_keys if not k.endswith('_2')]
+        key_traj2 = [k for k in all_keys if k.endswith('_2')]
         assert sft_type in ["pos", "both"]
         batch = {
             k: v.to(self.device) if torch.is_tensor(v) else v
@@ -610,52 +613,45 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
 
         # Swap so segment 1 is always the preferred/winner trajectory
         mask_pref_right = ((batch["votes"] < batch["votes_2"]) & (diff > equal_pref_threshold)).squeeze(-1)
-        for key in ["obs", "action", "votes", "length", 'ee_ori', 'ee_pos', 'joint_states', 'language']:
+
+        for key in key_traj1:
             batch[key][mask_pref_right], batch[f"{key}_2"][mask_pref_right] = batch[f"{key}_2"][mask_pref_right], batch[key][mask_pref_right]
 
+
         # Slice to make it compatible with action chunking
-        keys_to_slice = ['obs', 'action', 'ee_ori', 'ee_pos', 'joint_states', 'language']
+        keys_to_slice = [k for k in key_traj1 if k not in ['votes', 'length', 'beta_priori']]
         sliced_batch = {key: slice_episode(batch[key], horizon=self.horizon, stride=stride) for key in keys_to_slice}
         sliced_batch_2 = {key: slice_episode(batch[f"{key}_2"], horizon=self.horizon, stride=stride) for key in keys_to_slice}
-        assert (len(sliced_batch['obs']) == len(sliced_batch_2['obs'])) and (len(sliced_batch['action']) == len(sliced_batch_2['action']))
+        assert (len(sliced_batch[key_traj1[0]]) == len(sliced_batch_2[key_traj1[0]])) and (len(sliced_batch['action']) == len(sliced_batch_2['action']))
         assert not self.pred_action_steps_only and self.obs_as_global_cond and self.noise_scheduler.config.prediction_type == 'epsilon'
 
 
-        bsz = sliced_batch['obs'][0].shape[0]
+        bsz = sliced_batch['action'][0].shape[0]
         n_train_denoise_timesteps = self.noise_scheduler.config.num_train_timesteps
         use_bc = True if epoch < n_epoch_sft else False
 
         valid_count_1 = torch.zeros(bsz, device=self.device)
         valid_count_2 = torch.zeros(bsz, device=self.device)
         segment_loss_1, segment_loss_2, imitation_loss = 0.0, 0.0, 0.0
-        for i in range(len(sliced_batch['obs'])):
+        for i in range(len(sliced_batch['action'])):
             timesteps = torch.randint(0, n_train_denoise_timesteps, (bsz,), device=self.device).long()
             timesteps_1 = timesteps
             timesteps_2 = timesteps
+
 
             sample_1 = {key: sliced_batch[key][i] for key in keys_to_slice}
             sample_2 = {key: sliced_batch_2[key][i] for key in keys_to_slice}
 
             #### Encode condition
+            obs_key = [k for k in key_traj1 if k not in ['action', 'votes', 'length', 'beta_priori']]
+
 
             obs_dict_1 = {}
-            obs_dict_1.update(obs={
-                'agentview_rgb': sample_1['obs'].permute(0,1,4,2,3),
-                'ee_ori': sample_1['ee_ori'],
-                'ee_pos': sample_1['ee_pos'],
-                'joint_states': sample_1['joint_states'],
-                'language': sample_1['language'],
-            })
+            obs_dict_1.update(obs={k:sample_1[k] if 'image' not in k else sample_1[k].permute(0, 1, 4,2,3) for k in obs_key})
             obs_dict_1.update(action=sample_1['action'])
 
             obs_dict_2 = {}
-            obs_dict_2.update(obs={
-                'agentview_rgb': sample_2['obs'].permute(0,1,4,2,3),
-                'ee_ori': sample_2['ee_ori'],
-                'ee_pos': sample_2['ee_pos'],
-                'joint_states': sample_2['joint_states'],
-                'language': sample_2['language'],
-            })
+            obs_dict_2.update(obs={k:sample_2[k] if 'image' not in k else sample_2[k].permute(0, 1, 4,2,3) for k in obs_key})
             obs_dict_2.update(action=sample_2['action'])
 
             global_cond_1, trajectory_1 = self.compute_loss(obs_dict_1, return_cond=True)
@@ -806,6 +802,5 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
             loss_metrics.update({'total_mask_not_equal': mask_not_equal_pref.sum()})
 
         
-        breakpoint()
         return loss_total, loss_metrics
 
