@@ -216,6 +216,8 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
         self.num_inference_steps = num_inference_steps
         self.correct_num = 0
 
+        self.obs_encoder.eval()
+        self.obs_encoder.requires_grad_(False)
         print("Diffusion params: %e" % sum(p.numel() for p in self.model.parameters()))
         print("Vision params: %e" % sum(p.numel() for p in self.obs_encoder.parameters()))
         ## =========================== load language model ===========================

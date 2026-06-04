@@ -87,6 +87,10 @@ class PbrlDataset(BaseImageDataset):
             save_cached=True
         )
 
+        self.selected_pair_indices = []
+        self.replay_buffer_1 = replay_buffer_1
+        self.replay_buffer_2 = replay_buffer_2
+
         if self.pseudo_preference:
             if feature_extractor == "imagenet_resnet18":
                 encoder = ResNet().to(gpu_device).eval()
@@ -146,8 +150,11 @@ class PbrlDataset(BaseImageDataset):
             ep_idx_1, ts_idx_1, ep_idx_2, ts_idx_2 = pair_indices[i]
             ep_idx_1, ts_idx_1, ep_idx_2, ts_idx_2 = int(ep_idx_1), int(ts_idx_1), int(ep_idx_2), int(ts_idx_2)
 
-            episode_1 = replay_buffer_1.get_episode(ep_idx_1, copy=False)
-            episode_2 = replay_buffer_2.get_episode(ep_idx_2, copy=False)
+            # episode_1 = replay_buffer_1.get_episode(ep_idx_1, copy=False)
+            # episode_2 = replay_buffer_2.get_episode(ep_idx_2, copy=False)
+
+            episode_1 = replay_buffer_1.get_episode(ep_idx_1, keys=['action', 'rewards'], copy=False)
+            episode_2 = replay_buffer_2.get_episode(ep_idx_2, keys=['action', 'rewards'], copy=False)
 
             # Equal length processing for episode 1
             episode_1_len = len(episode_1['action'])
@@ -207,6 +214,9 @@ class PbrlDataset(BaseImageDataset):
                     for key in episode_1.keys():
                         data_pref[key] = episode_1[key]
                         data_pref[key + '_2'] = episode_2[key]
+                    
+                    # Add indices for seg_1 and seg_2
+                    self.selected_pair_indices.append([ep_idx_1, ts_idx_1, ep_idx_2, ts_idx_2, sequence_length])
 
                     self.pref_replay_buffer.add_pref_episode(
                         data=data_pref,
@@ -298,4 +308,61 @@ class PbrlDataset(BaseImageDataset):
 
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         torch_data = self.sampler.sample_sequence(idx)
+
+
+        ep_idx_1, ts_idx_1, ep_idx_2, ts_idx_2, seg_size = self.selected_pair_indices[idx]
+        ep_idx_1, ts_idx_1, ep_idx_2, ts_idx_2 = int(ep_idx_1), int(ts_idx_1), int(ep_idx_2), int(ts_idx_2)
+        
+        # load full trajectories
+        episode_1 = self.replay_buffer_1.get_episode(ep_idx_1, copy=False)  # keys=['action', 'rewards']
+        episode_2 = self.replay_buffer_2.get_episode(ep_idx_2, copy=False)
+
+        # Equal length processing for episode 1
+        episode_1_len = len(episode_1['action'])
+        if episode_1_len >= self.sequence_length:
+            start_1 = ts_idx_1
+            for key in episode_1.keys():
+                episode_1[key] = episode_1[key][start_1:start_1 + self.sequence_length]
+        else:
+            for key in episode_1.keys():
+                episode_1[key] = np.pad(episode_1[key], ((0, self.sequence_length - episode_1_len),) + ((0, 0),) * (episode_1[key].ndim - 1), mode='edge')
+
+        # Equal length processing for episode 2
+        episode_2_len = len(episode_2['action'])
+        if episode_2_len >= self.sequence_length:
+            start_2 = ts_idx_2
+            for key in episode_2.keys():
+                episode_2[key] = episode_2[key][start_2:start_2 + self.sequence_length]
+        else:
+            for key in episode_2.keys():
+                episode_2[key] = np.pad(episode_2[key], ((0, self.sequence_length - episode_2_len),) + ((0, 0),) * (episode_2[key].ndim - 1), mode='edge')
+
+
+        assert (episode_1['action'] - torch_data['action'].cpu().numpy()).sum() == 0
+        assert (episode_2['action'] - torch_data['action_2'].cpu().numpy()).sum() == 0
+
+        # Convert to torch for segment_1
+        for key in episode_1.keys():
+            if key in ['abs_action', 'action', 'rewards']:
+                continue
+            value = episode_1[key]
+            if isinstance(value, np.ndarray):
+                torch_data[key] = torch.from_numpy(value)
+            elif isinstance(value, (np.float32, np.float64, float, int)):
+                torch_data[key] = torch.tensor(value, dtype=torch.float32)
+            else:
+                raise TypeError(f"Unsupported type {type(value)} for key '{key}'")
+
+        # Convert to torch for segment_2
+        for key in episode_2.keys():
+            if key in ['abs_action', 'action', 'rewards']:
+                continue
+            value = episode_2[key]
+            if isinstance(value, np.ndarray):
+                torch_data[key + "_2"] = torch.from_numpy(value)
+            elif isinstance(value, (np.float32, np.float64, float, int)):
+                torch_data[key + "_2"] = torch.tensor(value, dtype=torch.float32)
+            else:
+                raise TypeError(f"Unsupported type {type(value)} for key '{key}'")
+
         return torch_data

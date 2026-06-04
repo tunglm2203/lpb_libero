@@ -14,7 +14,7 @@ checkpoint:
     monitor_key: test_mean_score
 dataloader:
   batch_size: 64
-  num_workers: 8
+  num_workers: 4
   persistent_workers: false
   pin_memory: true
   shuffle: true
@@ -97,20 +97,20 @@ policy:
       high_images:
         shape:
         - 3
-        - 480
-        - 640
+        - 140
+        - 140
         type: rgb
       wrist_left_images:
         shape:
         - 3
-        - 480
-        - 640
+        - 140
+        - 140
         type: rgb
       wrist_right_images:
         shape:
         - 3
-        - 480
-        - 640
+        - 140
+        - 140
         type: rgb
   beta: 0.01
   bias_reg: 0.25
@@ -145,20 +145,20 @@ task:
         high_images:
           shape:
           - 3
-          - 480
-          - 640
+          - 140
+          - 140
           type: rgb
         wrist_left_images:
           shape:
           - 3
-          - 480
-          - 640
+          - 140
+          - 140
           type: rgb
         wrist_right_images:
           shape:
           - 3
-          - 480
-          - 640
+          - 140
+          - 140
           type: rgb
     use_cache: true
     val_ratio: 0.0
@@ -179,20 +179,20 @@ task:
       high_images:
         shape:
         - 3
-        - 480
-        - 640
+        - 140
+        - 140
         type: rgb
       wrist_left_images:
         shape:
         - 3
-        - 480
-        - 640
+        - 140
+        - 140
         type: rgb
       wrist_right_images:
         shape:
         - 3
-        - 480
-        - 640
+        - 140
+        - 140
         type: rgb
   task_name: aloha
 
@@ -272,7 +272,7 @@ training:
     
 val_dataloader:
   batch_size: 64
-  num_workers: 8
+  num_workers: 4
   persistent_workers: false
   pin_memory: true
   shuffle: false

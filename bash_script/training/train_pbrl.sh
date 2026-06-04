@@ -19,7 +19,7 @@ for VAL_RATIO in 0.4; do
     for CPL_TYPE in "cplkl"; do # "sft", "cplkl"
       for BIAS_REG in 0.25; do      # 0.25 0.5 0.75 1
 
-        SEG_SIZE=100
+        SEG_SIZE=300
 
         USE_EXP_DATA_1=1   # To sample left segments
         USE_EXP_DATA_2=0   # To sample right segments
@@ -48,6 +48,8 @@ for VAL_RATIO in 0.4; do
         DATASET_PATH='data/transport/transport_ph_demo_v141_20_perc.hdf5'   # ${task_name} will be replaced during run-time
         DATASET_1="logs/transport_collect_data_200eps/_/collect_transport.hdf5"
         DATASET_2="logs/transport_collect_data_200eps/_/collect_transport.hdf5"
+        # DATASET_1="logs/transport_collect_data_10eps/_/collect_transport.hdf5"
+        # DATASET_2="logs/transport_collect_data_10eps/_/collect_transport.hdf5"
         checkpoint_dir=logs/transport_base_policy/checkpoints/270.ckpt
 
         EXP_NAME="${CPL_TYPE}_pseu_dpT_ExpD${USE_EXP_DATA_1}${USE_EXP_DATA_2}_Rew${DENSE_REWARD}_N${N_QUERIES}_L${SEG_SIZE}_1ER${TRAIN_RATIO}_SFT${SFT_TYPE}${N_EPOCH_SFT}_segM${SEG_MARGIN}_nD${N_DEMOS_FOR_PREF}_beta${CPL_BETA}_clip${CLIP_MARGIN}_unclipwin${UNCLIP_WIN}_smooth${SMOOTH_LABEL}"
@@ -60,7 +62,7 @@ for VAL_RATIO in 0.4; do
             training.resume=True \
             name="${EXP_NAME}" \
             logging.project="${PROJECT}" +logging.entity="${ENTITY}" \
-            training.rollout_every=1 training.checkpoint_every=50 \
+            training.rollout_every=50 training.checkpoint_every=10 \
             training.cpl_loss_type="${CPL_TYPE}" \
             training.use_expert_data_1=${USE_EXP_DATA_1} training.use_expert_data_2=${USE_EXP_DATA_2} \
             training.dataset_1_dir=${DATASET_1} training.dataset_2_dir=${DATASET_2} \
@@ -77,7 +79,7 @@ for VAL_RATIO in 0.4; do
             training.n_epoch_sft=${N_EPOCH_SFT} training.sft_type=${SFT_TYPE} \
             training.stride_ratio=${STRIDE} \
             training.seed=${SEED} \
-            training.num_epochs=2 \
+            training.num_epochs=500 \
             training.pseudo_preference=True \
             task.pref_dataset.n_demos_for_preference=${N_DEMOS_FOR_PREF} \
             task.pref_dataset.seg_margin=${SEG_MARGIN} task.pref_dataset.min_progress=${MIN_PROGRESS} \

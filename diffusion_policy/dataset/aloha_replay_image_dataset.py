@@ -10,6 +10,7 @@ import copy
 import json
 import hashlib
 import traceback
+import cv2
 
 from filelock import FileLock
 from threadpoolctl import threadpool_limits
@@ -303,9 +304,11 @@ def _convert_robomimic_to_replay(store, shape_meta, dataset_path,
                 dtype=this_data.dtype
             )
         
-        def img_copy(zarr_arr, zarr_idx, hdf5_arr, hdf5_idx):
+        def img_copy(zarr_arr, zarr_idx, hdf5_arr, hdf5_idx, h, w):
             try:
-                zarr_arr[zarr_idx] = hdf5_arr[hdf5_idx]
+                img = hdf5_arr[hdf5_idx]  # (480, 640, 3)
+                img = cv2.resize(img, (h, w),interpolation=cv2.INTER_AREA)
+                zarr_arr[zarr_idx] = img
                 # make sure we can successfully decode
                 _ = zarr_arr[zarr_idx]
                 return True
@@ -346,7 +349,7 @@ def _convert_robomimic_to_replay(store, shape_meta, dataset_path,
                             zarr_idx = episode_starts[episode_idx] + hdf5_idx
                             futures.add(
                                 executor.submit(img_copy, 
-                                    img_arr, zarr_idx, hdf5_arr, hdf5_idx))
+                                    img_arr, zarr_idx, hdf5_arr, hdf5_idx, h,w))
                 completed, futures = concurrent.futures.wait(futures)
                 for f in completed:
                     if not f.result():

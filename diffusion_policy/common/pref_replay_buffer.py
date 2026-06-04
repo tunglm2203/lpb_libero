@@ -289,7 +289,7 @@ class PrefReplayBuffer:
         else:
             data = {}
             for key in self.root['data'].keys():
-                if key in ['abs_action', 'rewards']:
+                if key in ['abs_action', 'abs_action_2', 'rewards', 'rewards_2']:
                     continue
                 data[key] = self.root['data'][key][idx]
 
