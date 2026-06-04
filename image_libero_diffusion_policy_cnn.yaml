@@ -110,35 +110,35 @@ policy:
       language:
         shape:
         - 15
-shape_meta:
-  action:
-    shape:
-    - 10
-  obs:
-    agentview_rgb:
-      shape:
-      - 3
-      - 128
-      - 128
-      type: rgb
-    # eye_in_hand_rgb:
-    #   shape:
-    #   - 3
-    #   - 128
-    #   - 128
-    #   type: rgb
-    ee_ori:
-      shape:
-      - 4
-    ee_pos:
-      shape:
-      - 3
-    joint_states:
-      shape:
-      - 7
-    language:
-      shape:
-      - 15
+# shape_meta:
+#   action:
+#     shape:
+#     - 10
+#   obs:
+#     agentview_rgb:
+#       shape:
+#       - 3
+#       - 128
+#       - 128
+#       type: rgb
+#     # eye_in_hand_rgb:
+#     #   shape:
+#     #   - 3
+#     #   - 128
+#     #   - 128
+#     #   type: rgb
+#     ee_ori:
+#       shape:
+#       - 4
+#     ee_pos:
+#       shape:
+#       - 3
+#     joint_states:
+#       shape:
+#       - 7
+#     language:
+#       shape:
+#       - 15
 task:
   abs_action: true
   dataset:
@@ -230,35 +230,35 @@ task:
     tqdm_interval_sec: 1.0
     train_start_idx: 0
   name: libero_image
-  shape_meta:
-    action:
-      shape:
-      - 10
-    obs:
-      agentview_rgb:
-        shape:
-        - 3
-        - 128
-        - 128
-        type: rgb
-      # eye_in_hand_rgb:
-      #   shape:
-      #   - 3
-      #   - 128
-      #   - 128
-      #   type: rgb
-      ee_ori:
-        shape:
-        - 4
-      ee_pos:
-        shape:
-        - 3
-      joint_states:
-        shape:
-        - 7
-      language:
-        shape:
-        - 15
+  # shape_meta:
+  #   action:
+  #     shape:
+  #     - 10
+  #   obs:
+  #     agentview_rgb:
+  #       shape:
+  #       - 3
+  #       - 128
+  #       - 128
+  #       type: rgb
+  #     # eye_in_hand_rgb:
+  #     #   shape:
+  #     #   - 3
+  #     #   - 128
+  #     #   - 128
+  #     #   type: rgb
+  #     ee_ori:
+  #       shape:
+  #       - 4
+  #     ee_pos:
+  #       shape:
+  #       - 3
+  #     joint_states:
+  #       shape:
+  #       - 7
+  #     language:
+  #       shape:
+  #       - 15
   task_name: libero
 task_name: libero_image
 training:

@@ -3,7 +3,7 @@
 #   - task: libero_10
 
 name: datacollect_diffusion_unet
-_target_: diffusion_policy.workspace.datacollect_diffusion_workspace.DatacollectDiffusionWorkspace
+_target_: diffusion_policy.workspace.libero_datacollect_diffusion_workspace.DatacollectDiffusionWorkspace
 checkpoint_dir: null
 
 task_name: libero_10
@@ -30,9 +30,6 @@ hydra:
 
 task:
   env_runner:
-    render_hw:
-      - 140
-      - 140
     _target_: diffusion_policy.env_runner.libero_image_runner.LiberoImageRunner
     abs_action: true
     crf: 22

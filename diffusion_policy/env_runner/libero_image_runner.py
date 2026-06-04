@@ -290,14 +290,18 @@ class LiberoImageRunner(BaseImageRunner):
         # allocate data
         all_video_paths = [None] * n_inits
         all_rewards = [None] * n_inits
-        all_successes = [None] * n_inits
+        all_infos = [None] * n_inits
+
 
         if self.collect_data:
             collect_observations = [[] for _ in range(n_inits)]
             collect_actions = [[] for _ in range(n_inits)]
             collect_rewards = [[] for _ in range(n_inits)]
             collect_terminals = [[] for _ in range(n_inits)]
-            collect_successes = [[] for _ in range(n_inits)]
+            collect_infos = [[] for _ in range(n_inits)]
+        else:
+            collect_observations = collect_actions = collect_rewards = collect_terminals = collect_infos =  None
+
 
         print("env_runner: ", self.language_goal)
         for chunk_idx in range(n_chunks):
@@ -393,23 +397,20 @@ class LiberoImageRunner(BaseImageRunner):
                     env_action = self.undo_transform_action(action)
 
 
-                if self.return_intermediate_state:
+                if self.collect_data:
                     for a_idx in range(self.n_action_steps):
                         single_step_action = env_action[:, a_idx:a_idx + 1, :]
                         obs, reward, done, info = env.step(single_step_action)
 
-                        # Record data if in collect_data mode
-                        if self.collect_data:
-                            for i in range(n_envs):
-                                obs_each_env = {}
-                                for key in obs:
-                                    obs_each_env[key] = obs[key][i][:1]
-                                
-                                collect_observations[chunk_idx * n_envs + i].append(obs_each_env)
+                        # single_step_action_raw = action[:, a_idx:a_idx + 1, :]
 
-                                single_step_action_raw = action[:, a_idx:a_idx + 1, :]
-                                collect_actions[chunk_idx * n_envs + i].append(single_step_action_raw[i, 0, ...])
-                                collect_terminals[chunk_idx * n_envs + i].append(done[i])
+                        for i in range(n_envs):
+                            obs_each_env = {}
+                            for key in obs:
+                                obs_each_env[key] = obs[key][i, 0]
+                            collect_observations[chunk_idx * n_envs + i].append(obs_each_env)
+                            collect_actions[chunk_idx * n_envs + i].append(single_step_action[i, 0, ...])
+                            collect_terminals[chunk_idx * n_envs + i].append(done[i])
                 else:
                     obs, reward, done, i = env.step(env_action)
 
@@ -430,14 +431,12 @@ class LiberoImageRunner(BaseImageRunner):
             # collect data for this round
             all_video_paths[this_global_slice] = env.render()[this_local_slice]
             all_rewards[this_global_slice] = env.call("get_attr", "reward")[this_local_slice]
-            all_successes[this_global_slice] = env.call("get_attr", "done")[this_local_slice]
+            all_infos[this_global_slice] = env.call('get_attr', 'all_infos')[this_local_slice]
             if self.collect_data:
                 for i in range(n_envs):
                     episode_reward = np.array(all_rewards[chunk_idx * n_envs + i])
                     collect_rewards[chunk_idx * n_envs + i].extend(episode_reward)
-
-                    episode_success = np.array(all_successes[chunk_idx * n_envs + i])
-                    collect_successes[chunk_idx * n_envs + i].extend(episode_success)
+                    collect_infos[chunk_idx * n_envs + i].extend(all_infos[chunk_idx * n_envs + i])
 
         # clear out video buffer
         _ = env.reset()
@@ -473,7 +472,7 @@ class LiberoImageRunner(BaseImageRunner):
             log_data[name] = value
 
         if self.collect_data:
-            final_observations, final_actions, final_rewards, final_terminals, final_successes = [], [], [], [], []
+            final_observations, final_actions, final_rewards, final_terminals, final_infos = [], [], [], [], []
 
             for i in range(n_inits):
                 idx = np.argmax(collect_terminals[i]) + 1  # Find that first done
@@ -481,17 +480,14 @@ class LiberoImageRunner(BaseImageRunner):
                 final_actions.append(collect_actions[i][:idx])
                 final_rewards.append(collect_rewards[i][:idx])
                 final_terminals.append(collect_terminals[i][:idx])
-                final_successes.append(collect_successes[i][:idx])
-
-                # final_infos.append(collect_infos[i][:idx + 1])  # include final obs of last action, thus +1
+                final_infos.append(collect_infos[i][:idx + 1])  # include final obs of last action, thus +1
 
             episode_data = {
                 'observations': final_observations,
                 'actions': final_actions,
                 'rewards': final_rewards,
                 'terminals': final_terminals,
-                'successes': final_successes,
-                # 'infos': final_infos,
+                'infos': final_infos,
             }
             return log_data, episode_data
         else:

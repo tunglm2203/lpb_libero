@@ -206,7 +206,7 @@ def visualize_action_dimensions(
     # plt.show()
 
 if __name__ == "__main__":
-    checkpoint = '/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/logs/pbrl/aloha_image/None/2026.06.03_17.28.13_pbrl_aloha/checkpoints/epoch_50.ckpt'
+    checkpoint = '/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/logs/pbrl/aloha_image/None/aloha_2026.06.04_06.26.50_cplkl_pseu_dpT_ExpD10_N30000_L250_1ER_SFTpos0_segM0.4_nD40_beta0.01_clip0.3_unclipwin1_smooth0.1/checkpoints/epoch_0060.ckpt'
     action_horizon = 4
 
     ## Load payload
@@ -272,6 +272,6 @@ if __name__ == "__main__":
             save_path=f"action_comparison_{i}.png",
             marker_stride=16,
         )
-
-print("Average MSE:", np.mean(results))
-print("Std MSE:", np.std(results))
+    print(checkpoint)
+    print("Average MSE:", np.mean(results))
+    print("Std MSE:", np.std(results))

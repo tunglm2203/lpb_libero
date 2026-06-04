@@ -132,7 +132,7 @@ class DatacollectDiffusionWorkspace(BaseWorkspace):
                 for k in keys:
                     out[k] = np.stack([obs[k] for obs in obs_list], axis=0)
                     if 'image' in k:
-                        out[k] = out[k].transpose(0,2,3,1).astype('uint8')
+                        out[k] = (out[k].transpose(0,2,3,1) * 255).astype('uint8')
                 return out
 
 
@@ -179,6 +179,45 @@ class DatacollectDiffusionWorkspace(BaseWorkspace):
             replay_collected_data(data_collect_file, run_dir)
 
 
+# def replay_collected_data(dataset_path, run_dir):
+#     # Read data from offline dataset
+#     f = h5py.File(dataset_path, "r")
+#     demos = list(f["data"].keys())
+
+#     inds = np.argsort([int(elem.split("_")[-1]) for elem in demos])
+#     demos = [demos[i] for i in inds]
+
+#     video_recoder = VideoRecorder.create_h264(
+#         fps=10,
+#         codec='h264',
+#         input_pix_fmt='rgb24',
+#         crf=22,
+#         thread_type='FRAME',
+#         thread_count=1
+#     )
+#     video_path = os.path.join(run_dir, f"videos")
+#     os.makedirs(video_path, exist_ok=True)
+
+#     for ind in tqdm(range(len(demos))):
+#         ep = demos[ind]
+
+#         agentview_image = f["data/{}/obs/agentview_image".format(ep)][()]
+#         # agentview_image = (agentview_image).clip(0, 255).astype(np.uint8)
+
+#         # Reset video writer
+#         video_recoder.stop()
+#         video_recoder.start(f"{video_path}/episode_{ind}.mp4")
+#         video_recoder.write_frame(agentview_image[0])  # Write initial state
+
+#         traj_len = agentview_image.shape[0]
+#         print(f"Trajectory length: {traj_len}")
+#         assert video_recoder.is_ready(), "Video recorder is not ready"
+#         assert traj_len > 1, f"Trajectory length is not greater than 1, got {traj_len}"
+#         for t in tqdm(range(1, traj_len), leave=False):
+#             video_recoder.write_frame(agentview_image[t])
+
+
+
 def replay_collected_data(dataset_path, run_dir, cam_width=140, cam_height=140):
     env_meta = FileUtils.get_env_metadata_from_dataset(dataset_path=dataset_path)
     env = EnvUtils.create_env_for_data_processing(
@@ -196,12 +235,12 @@ def replay_collected_data(dataset_path, run_dir, cam_width=140, cam_height=140):
     demos = [demos[i] for i in inds]
 
     video_recoder = VideoRecorder.create_h264(
-        fps=10,
+        fps=20,
         codec='h264',
         input_pix_fmt='rgb24',
-        crf=22,
+        crf=25,
         thread_type='FRAME',
-        thread_count=1
+        thread_count=16
     )
     video_path = os.path.join(run_dir, "videos")
     os.makedirs(video_path, exist_ok=True)
