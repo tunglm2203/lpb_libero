@@ -24,7 +24,7 @@ for VAL_RATIO in 0.4; do
         USE_EXP_DATA_1=1   # To sample left segments
         USE_EXP_DATA_2=0   # To sample right segments
         DENSE_REWARD=0
-        N_QUERIES=15000
+        N_QUERIES=20000
         IGNORE_EQUAL_PREF=0
         EQUAL_THRESHOLD=0.0
         N_EPOCH_SFT=0
@@ -32,9 +32,9 @@ for VAL_RATIO in 0.4; do
         STRIDE=1
         CPL_BETA=0.01
         CLIP_MARGIN=0.3
-        SEG_MARGIN=0.4      # Segment must beat the other by 60% coverage to win
+        SEG_MARGIN=0.2      # Segment must beat the other by 60% coverage to win
         MIN_PROGRESS=0      # At least one segment must achieve 2% coverage
-        N_DEMOS_FOR_PREF=30
+        N_DEMOS_FOR_PREF=35
         UNCLIP_WIN=1
         SMOOTH_LABEL=0.1
 

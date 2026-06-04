@@ -206,7 +206,7 @@ def visualize_action_dimensions(
     # plt.show()
 
 if __name__ == "__main__":
-    checkpoint = '/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/logs/reproduce/aloha_image/None/2026.06.02_03.50.28_train_diffusion_unet_hybrid_aloha_image/checkpoints/40.ckpt'
+    checkpoint = '/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/logs/pbrl/aloha_image/None/2026.06.03_17.28.13_pbrl_aloha/checkpoints/epoch_50.ckpt'
     action_horizon = 4
 
     ## Load payload
@@ -233,10 +233,14 @@ if __name__ == "__main__":
 
 
     ## Inference
-    file = '/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/aloha/fold_shirt/fold_shirt_debug.hdf5'
+    file = '/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/aloha/short_folding_debug/fold_shirt_debug.hdf5'
     data = h5py.File(file, 'r')['data']
 
-    for key in data.keys():
+    results = []
+
+    for i, key in enumerate(data.keys()):
+        if i > 2:
+            break
         # After each trajectory, reset
         policy.reset()
         obs = data[key]['obs']
@@ -256,12 +260,18 @@ if __name__ == "__main__":
 
         print("GT shape:", all_gt.shape)
         print("Pred shape:", all_pred.shape)
+        # MSE toàn bộ tensor        
+        mse = np.mean((all_gt - all_pred) ** 2)
+        results.append(mse)
+        print(f"Overall MSE: {mse:.6f}")
 
         visualize_action_dimensions(
             gt_actions=all_gt,
             pred_actions=all_pred,
             inference_points=inference_points,
-            save_path="action_comparison.png",
+            save_path=f"action_comparison_{i}.png",
             marker_stride=16,
         )
-        break
+
+print("Average MSE:", np.mean(results))
+print("Std MSE:", np.std(results))

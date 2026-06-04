@@ -33,7 +33,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: ${now:%Y.%m.%d}_${now:%H.%M.%S}_pbrl_transport
+  name: transport_${now:%Y.%m.%d}_${now:%H.%M.%S}_${name}
   project: null
   resume: true
   tags:

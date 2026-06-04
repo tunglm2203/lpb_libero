@@ -3,6 +3,7 @@ _target_: diffusion_policy.workspace.train_pbrl_diffusion_offline_workspace.Pbrl
 gamma: 0.999 
 pred_action_steps_only: False
 checkpoint_dir: null
+name: train_diffusion_unet_hybrid
 
 checkpoint:
   save_last_ckpt: true
@@ -33,20 +34,19 @@ logging:
   group: null
   id: null
   mode: online
-  name: ${now:%Y.%m.%d}_${now:%H.%M.%S}_pbrl_aloha
+  name: aloha_${now:%Y.%m.%d}_${now:%H.%M.%S}_${name}
   project: null
   resume: true
   tags:
-  - train_diffusion_unet_hybrid
+  - pbrl
   - aloha_image
   - default
 multi_run:
-  run_dir: data/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}_train_diffusion_unet_hybrid_aloha_image
-  wandb_name_base: ${now:%Y-%m-%d}_${now:%H-%M-%S}_train_diffusion_unet_hybrid_aloha_image
+  run_dir: data/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}_${name}_aloha_image
+  wandb_name_base: ${now:%Y-%m-%d}_${now:%H-%M-%S}_${name}_aloha_image
 n_action_steps: 15
 n_latency_steps: 0
 n_obs_steps: 2
-name: train_diffusion_unet_hybrid
 obs_as_global_cond: true
 optimizer:
   _target_: torch.optim.AdamW

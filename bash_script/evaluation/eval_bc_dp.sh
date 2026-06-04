@@ -12,14 +12,14 @@ NUM_INFERENCE_STEPS=100
 
 ALL_DATASETS=(
   # "LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate_demo.hdf5"
-  "image_abs.hdf5"
+  "transport_ph_demo_v141_20_perc.hdf5"
 )
 
 
 PROJECT_DIR=/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero
-POLICY_CKPT="${PROJECT_DIR}/logs/reproduce/transport_image/None/2026.06.01_03.13.13_train_diffusion_unet_hybrid_transport_image/checkpoints/200.ckpt"
+POLICY_CKPT="${PROJECT_DIR}/logs/pbrl/transport_image/None/transport_2026.06.04_04.58.08_cplkl_pseu_dpT_ExpD10_Rew0_N20000_L300_1ER_SFTpos0_segM0.2_nD35_beta0.01_clip0.3_unclipwin1_smooth0.1/checkpoints/epoch_0010.ckpt"
 
-OUTDIR="${PROJECT_DIR}/eval_logs/transport/my_transport_policy/checkpoints/200.ckpt"
+OUTDIR="${PROJECT_DIR}/eval_logs/transport/pbrl_transport_N20000_segM0.2/checkpoints/epoch_0010.ckpt"
 
 for DATASET in "${ALL_DATASETS[@]}"; do
   TASK=${DATASET%.hdf5}
@@ -29,7 +29,7 @@ for DATASET in "${ALL_DATASETS[@]}"; do
       --output_dir "${OUTDIR}" \
       --noise_scheduler ${NOISE_SCHEDULER} --num_inference_steps ${NUM_INFERENCE_STEPS} \
       --dataset_name ${DATASET} \
-      --ntest 50 \
+      --ntest 10 \
       --seed ${SEED} \
       --max_steps 700
   done

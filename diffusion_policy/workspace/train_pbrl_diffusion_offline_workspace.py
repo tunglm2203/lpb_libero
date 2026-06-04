@@ -397,7 +397,7 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
                 if self.epoch != 0 and ((self.epoch % cfg.training.checkpoint_every) == 0 or self.epoch == cfg.training.num_epochs - 1):
                     # checkpointing
                     if cfg.checkpoint.save_last_ckpt:
-                        self.save_checkpoint()
+                        self.save_checkpoint(tag=f'epoch_{self.epoch:04d}')
                     if cfg.checkpoint.save_last_snapshot:
                         self.save_snapshot()
 

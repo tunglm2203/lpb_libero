@@ -18,11 +18,11 @@ for VAL_RATIO in 0.1; do
     for CPL_TYPE in "cplkl"; do # "sft", "cplkl"
       for BIAS_REG in 0.25; do      # 0.25 0.5 0.75 1
 
-        SEG_SIZE=200
+        SEG_SIZE=250
 
         USE_EXP_DATA_1=1   # To sample left segments
         USE_EXP_DATA_2=0   # To sample right segments
-        N_QUERIES=15000
+        N_QUERIES=30000
         IGNORE_EQUAL_PREF=0
         EQUAL_THRESHOLD=0.0
         N_EPOCH_SFT=0
@@ -30,7 +30,7 @@ for VAL_RATIO in 0.1; do
         STRIDE=1
         CPL_BETA=0.01
         CLIP_MARGIN=0.3
-        SEG_MARGIN=0.0      # Segment must beat the other by 60% coverage to win
+        SEG_MARGIN=0.4      # Segment must beat the other by 60% coverage to win
         MIN_PROGRESS=0      # At least one segment must achieve 2% coverage
         N_DEMOS_FOR_PREF=40
         UNCLIP_WIN=1
@@ -52,7 +52,7 @@ for VAL_RATIO in 0.1; do
             training.resume=True \
             name="${EXP_NAME}" \
             logging.project="${PROJECT}" +logging.entity="${ENTITY}" \
-            training.rollout_every=1 training.checkpoint_every=50 \
+            training.rollout_every=1 training.checkpoint_every=10 \
             training.cpl_loss_type="${CPL_TYPE}" \
             training.use_expert_data_1=${USE_EXP_DATA_1} training.use_expert_data_2=${USE_EXP_DATA_2} \
             training.dataset_1_dir=${DATASET_1} training.dataset_2_dir=${DATASET_2} \
