@@ -20,6 +20,7 @@ import wandb
 import tqdm
 import scipy.stats as stats
 from termcolor import colored
+import imageio
 
 from diffusion_policy.common.pytorch_util import dict_apply, optimizer_to
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
@@ -70,6 +71,15 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
 
     def prepare_preference_dataset(self, cfg):
 
+        def get_hdf5_file(dataset_path, task_name):
+            task_path = os.path.join(dataset_path, task_name)
+            file = None
+            for file_name in os.listdir(task_path):
+                if file_name.endswith('.hdf5'):
+                    file = os.path.join(task_path, file_name)
+                    break
+            return file
+
         all_pref_datasets = {}
         
         if 'libero' in cfg.task.dataset_path:
@@ -84,9 +94,9 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
             print(f"Processing task: {task_name}")
 
             if 'libero' in cfg.task.dataset_path:
-                dataset_path = os.path.join(cfg.task.dataset_path, task_name)
-                dataset1_path = os.path.join(cfg.task.dataset_1.dataset_path, task_name)
-                dataset2_path = os.path.join(cfg.task.dataset_2.dataset_path, task_name)
+                dataset_path = get_hdf5_file(cfg.task.dataset_path, task_name)
+                dataset1_path = get_hdf5_file(cfg.task.dataset_1.dataset_path, task_name)
+                dataset2_path = get_hdf5_file(cfg.task.dataset_2.dataset_path, task_name)
             elif 'transport' in cfg.task.dataset_path or 'aloha' in cfg.task.dataset_path:
                 dataset_path = cfg.task.dataset_path
                 dataset1_path = cfg.task.dataset_1.dataset_path
@@ -106,6 +116,7 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
             # expert_image = dataset_1.replay_buffer.data.agentview_rgb[0]
             # import matplotlib.pyplot as plt
             # plt.imsave("/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/debugs/expert_image.png", expert_image)
+            # breakpoint()
 
             # configure dataset
             dataset_2: BaseImageDataset
@@ -141,6 +152,7 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
                 pseudo_preference=cfg.training.pseudo_preference,
                 replay_buffer_expert=replay_expert, dataset_expert_path=dataset_expert_path
             )
+
 
             # cut online groups
             votes_1, votes_2 = pref_dataset.pref_replay_buffer.meta['votes'], pref_dataset.pref_replay_buffer.meta['votes_2']
@@ -211,7 +223,7 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
                 output_dir=self.output_dir)
             assert isinstance(env_runner, BaseImageRunner)
         else:
-            env_runner = load_env_runner(cfg, self.output_dir)
+            env_runner = load_libero_env_runner(cfg, self.output_dir, tasks_name=['LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate_demo'])
 
         # configure logging
         wandb_run = wandb.init(
@@ -278,6 +290,22 @@ class PbrlDiffusionWorkspace(BaseWorkspace):
                 all_pref_datasets_local_votes.append(pref_dataset)
             
             combined_dataset = ConcatDataset(all_pref_datasets_local_votes)
+
+            # for sample in combined_dataset:
+            #     print(sample.keys())
+            #     print(sample['shouldercamera0_image_2'].shape) # torch.Size([300, 3, 128, 128]), dtype torch.uint8 shouldercamera0_image
+
+            #     for key in ['shouldercamera0_image', 'shouldercamera0_image_2']:
+            #         frames = sample[key]
+            #         if isinstance(frames, torch.Tensor):
+            #             frames = frames.cpu().numpy()
+            #         frames = frames.transpose(0, 2, 3, 1)
+            #         writer = imageio.get_writer(f"/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/debugs/output_{key}.mp4", fps=30, codec="libx264")
+            #         for frame in frames:
+            #             writer.append_data(frame)
+            #         writer.close()
+
+            #     breakpoint()
 
             train_dataloader = DataLoader(combined_dataset, **cfg.dataloader)
             # self.optimizer = self.model.get_optimizer(**cfg.optimizer)

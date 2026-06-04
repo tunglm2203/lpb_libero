@@ -3,7 +3,7 @@ export PATH=/pfss/mlde/workspaces/mlde_wsp_MGPATH/miniconda3/envs/lpb/bin:$PATH
 
 GPU=0
 
-NUM_EPISODES=10
+NUM_EPISODES=100
 
 ALL_CONFIGS=(
   "datacollect_libero_10.yaml"
@@ -22,6 +22,6 @@ for CONFIG_NAME in "${ALL_CONFIGS[@]}"; do
     collecting.render_image=True \
     hydra.run.dir=logs/libero_collect_data_${NUM_EPISODES}eps/${task_name}/${name}_${task_name} \
     checkpoint_dir=${checkpoint} \
-    task.env_runner.max_steps=200 \
+    task.env_runner.max_steps=500 \
     task.env_runner.collect_data=true
 done

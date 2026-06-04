@@ -322,28 +322,24 @@ def _convert_robomimic_to_replay(
     else:
         raise NotImplementedError(f"Language model {language_emb_model} not implemented")
 
-    dataset_paths = glob.glob(dataset_path + "/*_demo.hdf5")
 
-    dataset_paths = ['/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/data/libero_10/libero_10/LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate_demo/LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate_demo.hdf5']
+    language_goal = " ".join(dataset_path.replace('collect_', '').split("/")[-1][:-10].split("_"))
+    assert language_goal in language_goals_list, f"Language goal {language_goal} not found in language_goals"
 
-    for dataset_path_each in dataset_paths:
-        language_goal = " ".join(dataset_path_each.split("/")[-1][:-10].split("_"))
-        assert language_goal in language_goals_list, f"Language goal {language_goal} not found in language_goals"
+    print(f"Loading {dataset_path}")
+    file = h5py.File(
+        dataset_path, "r"
+    ) 
+    file_handles.append(
+        file
+    ) 
+    demos = file["data"]
 
-        print(f"Loading {dataset_path_each}")
-        file = h5py.File(
-            dataset_path_each, "r"
-        ) 
-        file_handles.append(
-            file
-        ) 
-        demos = file["data"]
-
-        for i in range(len(demos)):
-            demo = demos[f"demo_{i}"]
-            demos_all[f"demo_{count}"] = demo
-            language_all[f"demo_{count}"] = language_goal
-            count += 1
+    for i in range(len(demos)):
+        demo = demos[f"demo_{i}"]
+        demos_all[f"demo_{count}"] = demo
+        language_all[f"demo_{count}"] = language_goal
+        count += 1
     print("Total demos:", count)
 
         
@@ -401,7 +397,8 @@ def _convert_robomimic_to_replay(
             if data_key == 'rewards':
                 demo_key_data = demo_key_data[:, None]
             if 'ori' in key:
-                demo_key_data = axisangle2quat_batch(demo_key_data)
+                if demo_key_data.shape[-1] == 3:
+                    demo_key_data = axisangle2quat_batch(demo_key_data)
                 assert demo_key_data.shape[-1] == 4, f"Expected quaternion shape, got {demo_key_data.shape}"
             this_data.append(demo_key_data)
 

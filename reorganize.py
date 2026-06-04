@@ -6,7 +6,7 @@ from collections import defaultdict
 # ROOT DATASET FOLDER
 # =========================
 # root_dir = Path("data/libero_10/libero_10")
-root_dir = Path("/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/logs/collect_data_200eps/libero_10/datacollect_diffusion_unet_libero_10")
+root_dir = Path("/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/logs/libero_collect_data_100eps/_")
 
 
 

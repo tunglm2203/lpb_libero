@@ -445,6 +445,8 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, 
                 lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
+            # for key in this_nobs:
+            #     print(f"{key}: {this_nobs[key].shape}")
             nobs_features = self.obs_encoder(this_nobs)
             # reshape back to B, Do
             global_cond = nobs_features.reshape(batch_size, -1)
@@ -649,11 +651,11 @@ class PbrlDiffusionUnetHybridImagePolicy(BaseImagePolicy):
 
 
             obs_dict_1 = {}
-            obs_dict_1.update(obs={k:sample_1[k] if 'image' not in k else sample_1[k].permute(0, 1, 4,2,3) for k in obs_key})
+            obs_dict_1.update(obs={k:sample_1[k] for k in obs_key})
             obs_dict_1.update(action=sample_1['action'])
 
             obs_dict_2 = {}
-            obs_dict_2.update(obs={k:sample_2[k] if 'image' not in k else sample_2[k].permute(0, 1, 4,2,3) for k in obs_key})
+            obs_dict_2.update(obs={k:sample_2[k] for k in obs_key})
             obs_dict_2.update(action=sample_2['action'])
 
             global_cond_1, trajectory_1 = self.compute_loss(obs_dict_1, return_cond=True)

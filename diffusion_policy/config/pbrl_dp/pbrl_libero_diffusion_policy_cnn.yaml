@@ -14,7 +14,7 @@ checkpoint:
     mode: max
     monitor_key: test_mean_score
 dataloader:
-  batch_size: 128
+  batch_size: 64
   num_workers: 8
   persistent_workers: false
   pin_memory: true
@@ -34,7 +34,7 @@ logging:
   group: ${name}
   id: null
   mode: online
-  name: ${name}_${training.seed}
+  name: libero_${now:%Y.%m.%d}_${now:%H.%M.%S}_${name}
   project: diffusion_policy_libero
   resume: false
   tags:
@@ -127,7 +127,6 @@ policy:
   confidence_weight: False
   unclip_win: False
 task:
-  abs_action: true
   dataset:
     _target_: diffusion_policy.dataset.libero_replay_image_dataset.LiberoReplayImageDataset
     abs_action: true
@@ -255,31 +254,33 @@ task:
   task_name: libero
   dense_reward: False
   dataset_1:
-    _target_: diffusion_policy.dataset.libero_rollout_dataset.LiberoRolloutDataset
+    _target_: diffusion_policy.dataset.libero_replay_image_dataset.LiberoReplayImageDataset
     dataset_path: ${training.dataset_1_dir}
     horizon: ${horizon}
     pad_before: ${eval:'${n_obs_steps}-1+${n_latency_steps}'}
     pad_after: ${eval:'${n_action_steps}-1'}
+    n_obs_steps: ${task.dataset.n_obs_steps}
+    abs_action: ${task.dataset.abs_action}
+    rotation_rep: ${task.dataset.rotation_rep}
+    use_cache: true
     seed: 42
     val_ratio: 0.02
-    dense_reward: ${task.dense_reward}
     language_emb_model: clip
-    use_cache: true
 
 
   dataset_2:
-    _target_: diffusion_policy.dataset.libero_rollout_dataset.LiberoRolloutDataset
-    dataset_path: ${training.dataset_2_dir}
+    _target_: diffusion_policy.dataset.libero_replay_image_dataset.LiberoReplayImageDataset
+    dataset_path: ${training.dataset_1_dir}
     horizon: ${horizon}
     pad_before: ${eval:'${n_obs_steps}-1+${n_latency_steps}'}
     pad_after: ${eval:'${n_action_steps}-1'}
+    n_obs_steps: ${task.dataset.n_obs_steps}
+    abs_action: ${task.dataset.abs_action}
+    rotation_rep: ${task.dataset.rotation_rep}
+    use_cache: true
     seed: 42
     val_ratio: 0.02
-    dense_reward: ${task.dense_reward}
     language_emb_model: clip
-    use_cache: true
-    abs_action: true
-
 
   pref_dataset:
     _target_: diffusion_policy.dataset.pbrl_dataset.PbrlDataset
@@ -332,7 +333,7 @@ training:
     equal_threshold: 0.05
 
 val_dataloader:
-  batch_size: 128
+  batch_size: 64
   num_workers: 8
   persistent_workers: false
   pin_memory: true

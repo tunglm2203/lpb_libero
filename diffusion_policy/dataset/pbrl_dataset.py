@@ -115,11 +115,11 @@ class PbrlDataset(BaseImageDataset):
 
             start = time.time()
             feats_1 = load_or_compute_feats(
-                f"cache/dataset_1_{task_name.replace('_lowdim', '')}_{feature_extractor}_new.npz",
+                f"cache/dataset_1_{task_name.replace('_lowdim', '')}_{feature_extractor}_len{len(video_paths_1)}.npz",
                 video_paths_1, encoder, device, drop_last='collect' in video_paths_1,
                 use_cached=True, save_cached=True) # len = 45, [0].shape = numframes,512
             feats_2 = load_or_compute_feats(
-                f"cache/dataset_2_{task_name.replace('_lowdim', '')}_{feature_extractor}_new.npz",
+                f"cache/dataset_2_{task_name.replace('_lowdim', '')}_{feature_extractor}_len{len(video_paths_2)}.npz",
                 video_paths_2, encoder, device, drop_last='collect' in video_paths_2,
                 use_cached=True, save_cached=True) # len = 200, [0].shape = numframes,512
             print(f"Total time to load/encode {len(video_paths_1) + len(video_paths_2)} videos: {time.time() - start:.2f}s")
@@ -346,6 +346,9 @@ class PbrlDataset(BaseImageDataset):
             if key in ['abs_action', 'action', 'rewards']:
                 continue
             value = episode_1[key]
+            if 'image' in key or 'rgb' in key:
+                if value.shape[-1] == 3:
+                    value = value.transpose(0, 3, 1, 2)
             if isinstance(value, np.ndarray):
                 torch_data[key] = torch.from_numpy(value)
             elif isinstance(value, (np.float32, np.float64, float, int)):
@@ -358,6 +361,10 @@ class PbrlDataset(BaseImageDataset):
             if key in ['abs_action', 'action', 'rewards']:
                 continue
             value = episode_2[key]
+
+            if 'image' in key or 'rgb' in key:
+                if value.shape[-1] == 3:
+                    value = value.transpose(0, 3, 1, 2)
             if isinstance(value, np.ndarray):
                 torch_data[key + "_2"] = torch.from_numpy(value)
             elif isinstance(value, (np.float32, np.float64, float, int)):

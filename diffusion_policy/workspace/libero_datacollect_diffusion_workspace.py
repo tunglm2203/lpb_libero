@@ -149,6 +149,7 @@ class DatacollectDiffusionWorkspace(BaseWorkspace):
                         out[mapping_keys[k]] = np.stack([obs[k] for obs in obs_list], axis=0)
                         if 'image' in k:
                             out[mapping_keys[k]] = (out[mapping_keys[k]].transpose(0,2,3,1)*255).astype('uint8')
+                            out[mapping_keys[k]] = np.flip(out[mapping_keys[k]], axis=1)
                     return out
 
 

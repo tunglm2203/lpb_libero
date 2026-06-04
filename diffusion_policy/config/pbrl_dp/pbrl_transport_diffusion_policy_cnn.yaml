@@ -148,7 +148,7 @@ task:
   dataset:
     _target_: diffusion_policy.dataset.robomimic_replay_image_dataset.RobomimicReplayImageDataset
     abs_action: true
-    dataset_path: /pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/logs/transport_collect_data_10eps/_/collect_transport.hdf5
+    dataset_path: null
     horizon: 32
     n_obs_steps: 2
     pad_after: 7
@@ -208,13 +208,13 @@ task:
 
     use_cache: true
     val_ratio: 0.0
-  dataset_path: /pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/logs/transport_collect_data_10eps/_/collect_transport.hdf5
+  dataset_path: null
   dataset_type: mh
   env_runner:
     _target_: diffusion_policy.env_runner.robomimic_image_runner.RobomimicImageRunner
     abs_action: true
     crf: 22
-    dataset_path: /pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/logs/transport_collect_data_10eps/_/collect_transport.hdf5
+    dataset_path: null
     fps: 10
     max_steps: 700
     n_action_steps: 15
