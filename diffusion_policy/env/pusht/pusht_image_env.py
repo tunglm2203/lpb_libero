@@ -10,7 +10,7 @@ class PushTImageEnv(PushTEnv):
             legacy=False,
             block_cog=None, 
             damping=None,
-            render_size=140):
+            render_size=96):
         super().__init__(
             legacy=legacy, 
             block_cog=block_cog,
@@ -30,13 +30,7 @@ class PushTImageEnv(PushTEnv):
                 high=ws,
                 shape=(2,),
                 dtype=np.float32
-            ),
-            'state': spaces.Box(
-                low=-np.inf,
-                high=np.inf,
-                shape=(6,),
-                dtype=np.float32
-            ),
+            )
         })
         self.render_cache = None
     
@@ -45,22 +39,20 @@ class PushTImageEnv(PushTEnv):
 
         agent_pos = np.array(self.agent.position)
         img_obs = np.moveaxis(img.astype(np.float32) / 255, -1, 0)
-        state = np.concatenate([agent_pos, np.array(list(self.block.position) + [self.block.angle % (2 * np.pi)]), np.array([self.n_contact_points_per_step])])
         obs = {
             'image': img_obs,
-            'agent_pos': agent_pos,
-            'state': state
+            'agent_pos': agent_pos
         }
 
         # draw action
-        # if self.latest_action is not None:
-        #     action = np.array(self.latest_action)
-        #     coord = (action / 512 * 96).astype(np.int32)
-        #     marker_size = int(8/96*self.render_size)
-        #     thickness = int(1/96*self.render_size)
-        #     cv2.drawMarker(img, coord,
-        #         color=(255,0,0), markerType=cv2.MARKER_CROSS,
-        #         markerSize=marker_size, thickness=thickness)
+        if self.latest_action is not None:
+            action = np.array(self.latest_action)
+            coord = (action / 512 * 96).astype(np.int32)
+            marker_size = int(8/96*self.render_size)
+            thickness = int(1/96*self.render_size)
+            cv2.drawMarker(img, coord,
+                color=(255,0,0), markerType=cv2.MARKER_CROSS,
+                markerSize=marker_size, thickness=thickness)
         self.render_cache = img
 
         return obs

@@ -83,6 +83,10 @@ class RobomimicLowdimWrapper(gym.Env):
     
     def step(self, action):
         raw_obs, reward, done, info = self.env.step(action)
+        robot_state = self.env.get_state()
+        success = self.env.is_success()["task"]
+        info.update(robot_state)
+        info.update({"success": float(success)})
         obs = np.concatenate([
             raw_obs[key] for key in self.obs_keys
         ], axis=0)

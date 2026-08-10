@@ -32,10 +32,10 @@ class PushTEnv(gym.Env):
     def __init__(self,
             legacy=False, 
             block_cog=None, damping=None,
-            render_action=False ,
-            render_size=140,
+            render_action=True,
+            render_size=96,
             reset_to_state=None,
-            hardcode_reset=True,
+            perturb_level=0.0,
         ):
         self._seed = None
         self.seed()
@@ -84,7 +84,7 @@ class PushTEnv(gym.Env):
         self.render_buffer = None
         self.latest_action = None
         self.reset_to_state = reset_to_state
-        self.hardcode_reset = hardcode_reset
+        self.perturb = perturb_level
 
     def reset(self):
         seed = self._seed
@@ -103,32 +103,15 @@ class PushTEnv(gym.Env):
                 rs.randint(100, 400), rs.randint(100, 400),
                 rs.randn() * 2 * np.pi - np.pi
                 ])
-        # if self.hardcode_reset:
-        #     print('this branch')
-        #     if seed == 0:
-        #         state = np.array([100, 200, 140, 100, 1.7, 0])
-        #         # state = [220, 180,230,230,np.pi/4]
-        #     elif seed >= 100000:
-        #         # state = np.array([170, 100, 140, 100, 1.7, 0])
-        #         rs = np.random.RandomState(seed=seed)
-        #         state = np.array([
-        #             rs.randint(100, 200), rs.randint(100, 200),
-        #             rs.randint(120, 160), rs.randint(120, 160),
-        #             rs.uniform(1.4, 1.9)
-        #             ])
-                
         self._set_state(state)
 
-        self.n_contact_points_per_step = 0
         observation = self._get_obs()
-        
         return observation
 
     def step(self, action):
         dt = 1.0 / self.sim_hz
         self.n_contact_points = 0
         n_steps = self.sim_hz // self.control_hz
-
         if action is not None:
             self.latest_action = action
             for i in range(n_steps):
@@ -139,6 +122,10 @@ class PushTEnv(gym.Env):
 
                 # Step physics.
                 self.space.step(dt)
+
+        # external perturbation
+        if self.perturb > 0:
+            self.block.position += Vec2d(self.perturb,self.perturb)
 
         # compute reward
         goal_body = self._get_goal_pose_body(self.goal_pose)
@@ -153,6 +140,7 @@ class PushTEnv(gym.Env):
 
         observation = self._get_obs()
         info = self._get_info()
+        info.update({'coverage': coverage})  # Expose this to use with oracle
 
         return observation, reward, done, info
 
@@ -190,11 +178,10 @@ class PushTEnv(gym.Env):
     def _get_info(self):
         n_steps = self.sim_hz // self.control_hz
         n_contact_points_per_step = int(np.ceil(self.n_contact_points / n_steps))
-        self.n_contact_points_per_step = n_contact_points_per_step
         info = {
             'pos_agent': np.array(self.agent.position),
             'vel_agent': np.array(self.agent.velocity),
-            'block_pose': np.array(list(self.block.position) + [self.block.angle % (2 * np.pi)]),
+            'block_pose': np.array(list(self.block.position) + [self.block.angle]),
             'goal_pose': self.goal_pose,
             'n_contacts': n_contact_points_per_step}
         return info
@@ -232,20 +219,38 @@ class PushTEnv(gym.Env):
 
             # the clock is already ticked during in step for "human"
 
+        # # Draw perturbation
+        # if self.perturb > 0:
+        #     wind_direction = np.arctan2(self.perturb, self.perturb)
+        #     wind_arrow_length = 40  # Increased length for better visibility
+        #     center = (50, 50)  # Adjusted position for better placement
+        #     end_pos = (center[0] + int(wind_arrow_length * np.cos(wind_direction)),
+        #                center[1] + int(wind_arrow_length * np.sin(wind_direction)))
+        #     pygame.draw.circle(canvas, (0, 0, 0), center, 40, 3)  # Increased radius and thickness
+        #     pygame.draw.line(canvas, (139, 0, 0), center, end_pos, 5)  # Dark red color
+        #     wind_magnitude = np.sqrt(self.perturb**2 + self.perturb**2)
+        #     max_wind_magnitude = 2  # Adjust this value according to your max wind magnitude
+        #     bar_length = 150  # Increased length for better visibility
+        #     bar_height = 30  # Increased height for better visibility
+        #     bar_x = self.window_size - bar_length - 10
+        #     bar_y = 10
+        #     pygame.draw.rect(canvas, (0, 0, 0), (bar_x, bar_y, bar_length, bar_height), 3)  # Thicker outline
+        #     filled_length = int(bar_length * (wind_magnitude / max_wind_magnitude))
+        #     pygame.draw.rect(canvas, (139, 0, 0), (bar_x, bar_y, filled_length, bar_height))  # Dark red fill
 
         img = np.transpose(
                 np.array(pygame.surfarray.pixels3d(canvas)), axes=(1, 0, 2)
             )
         img = cv2.resize(img, (self.render_size, self.render_size))
-        # if self.render_action:
-        #     if self.render_action and (self.latest_action is not None):
-        #         action = np.array(self.latest_action)
-        #         coord = (action / 512 * 96).astype(np.int32)
-        #         marker_size = int(8/96*self.render_size)
-        #         thickness = int(1/96*self.render_size)
-        #         cv2.drawMarker(img, coord,
-        #             color=(255,0,0), markerType=cv2.MARKER_CROSS,
-        #             markerSize=marker_size, thickness=thickness)
+        if self.render_action:
+            if self.render_action and (self.latest_action is not None):
+                action = np.array(self.latest_action)
+                coord = (action / 512 * 96).astype(np.int32)
+                marker_size = int(8/96*self.render_size)
+                thickness = int(1/96*self.render_size)
+                cv2.drawMarker(img, coord,
+                    color=(255,0,0), markerType=cv2.MARKER_CROSS,
+                    markerSize=marker_size, thickness=thickness)
         return img
 
 

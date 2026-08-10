@@ -1,6 +1,5 @@
 from typing import Dict
 import torch
-import torch.nn.functional as F
 import numpy as np
 import copy
 from diffusion_policy.common.pytorch_util import dict_apply
@@ -19,13 +18,12 @@ class PushTImageDataset(BaseImageDataset):
             pad_after=0,
             seed=42,
             val_ratio=0.0,
-            random=False,
             max_train_episodes=None
             ):
         
         super().__init__()
         self.replay_buffer = ReplayBuffer.copy_from_path(
-            zarr_path, keys=['img', 'state', 'action', 'n_contacts'])
+            zarr_path, keys=['img', 'state', 'action'])
         val_mask = get_val_mask(
             n_episodes=self.replay_buffer.n_episodes, 
             val_ratio=val_ratio,
@@ -46,7 +44,6 @@ class PushTImageDataset(BaseImageDataset):
         self.horizon = horizon
         self.pad_before = pad_before
         self.pad_after = pad_after
-        print('image shape ', self.replay_buffer['img'].shape)
 
     def get_validation_dataset(self):
         val_set = copy.copy(self)
@@ -63,8 +60,7 @@ class PushTImageDataset(BaseImageDataset):
     def get_normalizer(self, mode='limits', **kwargs):
         data = {
             'action': self.replay_buffer['action'],
-            'agent_pos': self.replay_buffer['state'][...,:2],
-            'state': np.concatenate((self.replay_buffer['state'], self.replay_buffer['n_contacts']), axis=1),
+            'agent_pos': self.replay_buffer['state'][...,:2]
         }
         normalizer = LinearNormalizer()
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
@@ -91,7 +87,16 @@ class PushTImageDataset(BaseImageDataset):
         sample = self.sampler.sample_sequence(idx)
         data = self._sample_to_data(sample)
         torch_data = dict_apply(data, torch.from_numpy)
-        torch_data['obs']['image'] = F.interpolate(torch_data['obs']['image'], size=(140, 140), mode='bilinear', align_corners=False)
-        # print(torch_data['obs']['image'].shape)
         return torch_data
 
+
+def test():
+    import os
+    zarr_path = os.path.expanduser('~/dev/diffusion_policy/data/pusht/pusht_cchi_v7_replay.zarr')
+    dataset = PushTImageDataset(zarr_path, horizon=16)
+
+    # from matplotlib import pyplot as plt
+    # normalizer = dataset.get_normalizer()
+    # nactions = normalizer['action'].normalize(dataset.replay_buffer['action'])
+    # diff = np.diff(nactions, axis=0)
+    # dists = np.linalg.norm(np.diff(nactions, axis=0), axis=-1)

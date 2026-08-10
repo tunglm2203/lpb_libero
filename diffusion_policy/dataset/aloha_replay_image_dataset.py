@@ -305,16 +305,19 @@ def _convert_robomimic_to_replay(store, shape_meta, dataset_path,
             )
         
         def img_copy(zarr_arr, zarr_idx, hdf5_arr, hdf5_idx, h, w):
-            try:
-                img = hdf5_arr[hdf5_idx]  # (480, 640, 3)
-                img = cv2.resize(img, (h, w),interpolation=cv2.INTER_AREA)
-                zarr_arr[zarr_idx] = img
-                # make sure we can successfully decode
-                _ = zarr_arr[zarr_idx]
-                return True
-            except Exception:
-                traceback.print_exc()
-                raise   
+            # try:
+            img = hdf5_arr[hdf5_idx]  # (480, 640, 3)
+            img = cv2.resize(img, (w, h),interpolation=cv2.INTER_AREA)
+            # if h == 640:
+            #     print(f"h: {h}, w: {w}")
+            # breakpoint()
+            zarr_arr[zarr_idx] = img
+            # make sure we can successfully decode
+            _ = zarr_arr[zarr_idx]
+            return True
+            # except Exception:
+            #     traceback.print_exc()
+            #     raise   
         
         with tqdm(total=n_steps*len(rgb_keys), desc="Loading image data", mininterval=1.0) as pbar:
             # one chunk per thread, therefore no synchronization needed

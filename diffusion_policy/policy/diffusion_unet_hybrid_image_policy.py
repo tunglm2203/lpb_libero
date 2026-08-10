@@ -1,17 +1,9 @@
-import os
 from typing import Dict
-
-import yaml
-from diffusion_policy.common.language_models import extract_text_features, get_text_model
-import hydra
-import cv2
+import math
 import torch
 import torch.nn as nn
-import numpy as np
 import torch.nn.functional as F
-import torch.optim as optim
-
-from einops import reduce
+from einops import rearrange, reduce
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 
 from diffusion_policy.model.common.normalizer import LinearNormalizer
@@ -22,13 +14,9 @@ from diffusion_policy.common.robomimic_config_util import get_robomimic_config
 from robomimic.algo import algo_factory
 from robomimic.algo.algo import PolicyAlgo
 import robomimic.utils.obs_utils as ObsUtils
-import robomimic.models.obs_core as rmbn
+import robomimic.models.base_nets as rmbn
 import diffusion_policy.model.vision.crop_randomizer as dmvc
 from diffusion_policy.common.pytorch_util import dict_apply, replace_submodules
-
-def boundary_penalty(action, lower_bound=-1.0, upper_bound=1.0):
-    penalty = torch.relu(action - upper_bound) + torch.relu(lower_bound - action)
-    return penalty.sum()
 
 
 class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
@@ -65,8 +53,6 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
         }
         obs_key_shapes = dict()
         for key, attr in obs_shape_meta.items():
-            if key == 'language':
-                continue
             shape = attr['shape']
             obs_key_shapes[key] = list(shape)
 
@@ -124,7 +110,9 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
                     num_groups=x.num_features//16, 
                     num_channels=x.num_features)
             )
+            # obs_encoder.obs_nets['agentview_image'].nets[0].nets
         
+        # obs_encoder.obs_randomizers['agentview_image']
         if eval_fixed_crop:
             replace_submodules(
                 root_module=obs_encoder,
@@ -145,8 +133,6 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
         if obs_as_global_cond:
             input_dim = action_dim
             global_cond_dim = obs_feature_dim * n_obs_steps
-            if 'language' in shape_meta['obs']:
-                global_cond_dim += 32
 
         model = ConditionalUnet1D(
             input_dim=input_dim,
@@ -170,7 +156,6 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
             action_visible=False
         )
         self.normalizer = LinearNormalizer()
-        self.dynamics_model_normalizer = LinearNormalizer()
         self.horizon = horizon
         self.obs_feature_dim = obs_feature_dim
         self.action_dim = action_dim
@@ -178,51 +163,22 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
         self.n_obs_steps = n_obs_steps
         self.obs_as_global_cond = obs_as_global_cond
         self.kwargs = kwargs
+
         if num_inference_steps is None:
             num_inference_steps = noise_scheduler.config.num_train_timesteps
         self.num_inference_steps = num_inference_steps
-        self.correct_num = 0
 
         print("Diffusion params: %e" % sum(p.numel() for p in self.model.parameters()))
         print("Vision params: %e" % sum(p.numel() for p in self.obs_encoder.parameters()))
-        ## =========================== load language model ===========================
-        if 'language' in shape_meta['obs']:
-            self.text_model, self.tokenizer, self.max_length = get_text_model(
-                'libero_10', 'clip'
-            )
-
-    def initialize_planner(self,
-                           planner_target,
-                           demo_dataset_config,
-                           dynamics_model_ckpt,
-                           action_step,
-                           output_dir,
-                           guidance_start_timestep,
-                           guidance_scale,
-                           threshold,
-                           demo_dataset_path=None):
-        planner_cls = hydra.utils.get_class(planner_target)
-        self.planner = planner_cls(demo_dataset_config, dynamics_model_ckpt, action_step, output_dir, demo_dataset_path)
-        self.guidance_start_timestep = guidance_start_timestep
-        self.guidance_scale = guidance_scale
-        self.planner.set_policy_action_normalizer(self.normalizer['action'])
-        self.threshold = threshold
-        
+    
     # ========= inference  ============
-    def guided_conditional_sample(self, 
+    def conditional_sample(self, 
             condition_data, condition_mask,
             local_cond=None, global_cond=None,
             generator=None,
-            classifier_guidance=False,
-            current_obs=None,
-            text_latents=None,
             # keyword arguments to scheduler.step
             **kwargs
             ):
-        # print('variant2')
-        if text_latents is not None:
-            current_obs['language'] = text_latents
-
         model = self.model
         scheduler = self.noise_scheduler
 
@@ -235,28 +191,13 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
         # set step values
         scheduler.set_timesteps(self.num_inference_steps)
 
-        if classifier_guidance:
-            current_cost = -1 * self.planner.compute_current_reward(current_obs)
-            current_cost = current_cost.item()
-            if current_cost >= self.threshold:
-                self.correct_num += 1
-        
         for t in scheduler.timesteps:
             # 1. apply conditioning
             trajectory[condition_mask] = condition_data[condition_mask]
-            trajectory = trajectory.detach().requires_grad_()
 
             # 2. predict model output
             model_output = model(trajectory, t, 
                 local_cond=local_cond, global_cond=global_cond)
-
-            if classifier_guidance and t < self.guidance_start_timestep and current_cost > self.threshold:
-                trajectory0 = scheduler.step(model_output, t, trajectory).pred_original_sample
-                loss = self.planner.compute_loss(trajectory0, current_obs)
-                cond_grad = -torch.autograd.grad(loss, trajectory)[0]
-                guidance_scale = self.guidance_scale
-                grad_scale = guidance_scale * (1 - scheduler.alphas_cumprod[t]).sqrt()
-                trajectory = trajectory.detach() + grad_scale * cond_grad
 
             # 3. compute previous image: x_t -> x_t-1
             trajectory = scheduler.step(
@@ -264,33 +205,20 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
                 generator=generator,
                 **kwargs
                 ).prev_sample
-
+        
         # finally make sure conditioning is enforced
         trajectory[condition_mask] = condition_data[condition_mask]        
 
         return trajectory
 
-    def predict_action(self, obs_dict: Dict[str, torch.Tensor], language_goal=None) -> Dict[str, torch.Tensor]:
+
+    def predict_action(self, obs_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
         obs_dict: must include "obs" key
         result: must include "action" key
         """
         assert 'past_action' not in obs_dict # not implemented yet
         # normalize input
-        text_latents = None
-        if language_goal is not None:
-            text_tokens = self.tokenizer(
-                language_goal,
-                padding="max_length",
-                max_length=self.max_length,
-                return_tensors="pt",
-            ).to(self.device)
-            text_latents = extract_text_features(
-                self.text_model,
-                text_tokens,
-                language_emb_model='clip',
-            )
-
         nobs = self.normalizer.normalize(obs_dict)
         value = next(iter(nobs.values()))
         B, To = value.shape[:2]
@@ -312,8 +240,6 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
             nobs_features = self.obs_encoder(this_nobs)
             # reshape back to B, Do
             global_cond = nobs_features.reshape(B, -1)
-            if text_latents is not None:
-                global_cond = torch.cat([global_cond, text_latents], dim=-1)
             # empty data for action
             cond_data = torch.zeros(size=(B, T, Da), device=device, dtype=dtype)
             cond_mask = torch.zeros_like(cond_data, dtype=torch.bool)
@@ -329,97 +255,13 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
             cond_mask[:,:To,Da:] = True
 
         # run sampling
-        with torch.no_grad():
-            nsample = self.guided_conditional_sample(
-                cond_data, 
-                cond_mask,
-                local_cond=local_cond,
-                global_cond=global_cond,
-                current_obs=dict_apply(obs_dict, lambda x: x[:, -1:, ...]),
-                **self.kwargs)
-        # unnormalize prediction
-        naction_pred = nsample[...,:Da]
-        action_pred = self.normalizer['action'].unnormalize(naction_pred)
-
-        # get action
-        start = To - 1
-        end = start + self.n_action_steps
-        action = action_pred[:,start:end]
-        
-        result = {
-            'action': action,
-            'action_pred': action_pred
-        }
-        return result
-
-    def predict_action_dyn_guided(self, obs_dict: Dict[str, torch.Tensor], language_goal=None) -> Dict[str, torch.Tensor]:
-        """
-        obs_dict: must include "obs" key
-        result: must include "action" key
-        """
-        assert 'past_action' not in obs_dict # not implemented yet
-        # normalize input
-        text_latents = None
-        if language_goal is not None:
-            text_tokens = self.tokenizer(
-                language_goal,
-                padding="max_length",
-                max_length=self.max_length,
-                return_tensors="pt",
-            ).to(self.device)
-            text_latents = extract_text_features(
-                self.text_model,
-                text_tokens,
-                language_emb_model='clip',
-            )
-
-        nobs = self.normalizer.normalize(obs_dict)
-        value = next(iter(nobs.values()))
-        B, To = value.shape[:2]
-        T = self.horizon
-        Da = self.action_dim
-        Do = self.obs_feature_dim
-        To = self.n_obs_steps
-
-        # build input
-        device = self.device
-        dtype = self.dtype
-
-        # handle different ways of passing observation
-        local_cond = None
-        global_cond = None
-        if self.obs_as_global_cond:
-            # condition through global feature
-            this_nobs = dict_apply(nobs, lambda x: x[:,:To,...].reshape(-1,*x.shape[2:]))
-            nobs_features = self.obs_encoder(this_nobs)
-            # reshape back to B, Do
-            global_cond = nobs_features.reshape(B, -1)
-            if text_latents is not None:
-                global_cond = torch.cat([global_cond, text_latents], dim=-1)
-            # empty data for action
-            cond_data = torch.zeros(size=(B, T, Da), device=device, dtype=dtype)
-            cond_mask = torch.zeros_like(cond_data, dtype=torch.bool)
-        else:
-            # condition through impainting
-            this_nobs = dict_apply(nobs, lambda x: x[:,:To,...].reshape(-1,*x.shape[2:]))
-            nobs_features = self.obs_encoder(this_nobs)
-            # reshape back to B, To, Do
-            nobs_features = nobs_features.reshape(B, To, -1)
-            cond_data = torch.zeros(size=(B, T, Da+Do), device=device, dtype=dtype)
-            cond_mask = torch.zeros_like(cond_data, dtype=torch.bool)
-            cond_data[:,:To,Da:] = nobs_features
-            cond_mask[:,:To,Da:] = True
-
-
-        nsample = self.guided_conditional_sample(
+        nsample = self.conditional_sample(
             cond_data, 
             cond_mask,
             local_cond=local_cond,
             global_cond=global_cond,
-            classifier_guidance=True,
-            current_obs=dict_apply(obs_dict, lambda x: x[:, -1:, ...]),
-            text_latents=text_latents,
             **self.kwargs)
+        
         # unnormalize prediction
         naction_pred = nsample[...,:Da]
         action_pred = self.normalizer['action'].unnormalize(naction_pred)
@@ -434,7 +276,7 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
             'action_pred': action_pred
         }
         return result
-    
+
     # ========= training  ============
     def set_normalizer(self, normalizer: LinearNormalizer):
         self.normalizer.load_state_dict(normalizer.state_dict())
@@ -442,23 +284,6 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
     def compute_loss(self, batch):
         # normalize input
         assert 'valid_mask' not in batch
-        text_latents = None
-        if 'language' in batch['obs']:
-            if "language" in batch["obs"]:
-                language_goal = batch["obs"]["language"]
-                del batch["obs"]["language"]
-                text_tokens = {
-                    "input_ids": language_goal[:, 0].long()[:, 0],
-                    "attention_mask": language_goal[:, 0].long()[:, 1],
-                }
-                text_latents = extract_text_features(
-                    self.text_model,
-                    text_tokens,
-                    language_emb_model='clip',
-                )
-            elif "language_latents" in batch:
-                text_latents = batch["language_latents"]
-
         nobs = self.normalizer.normalize(batch['obs'])
         nactions = self.normalizer['action'].normalize(batch['action'])
         batch_size = nactions.shape[0]
@@ -473,14 +298,9 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, 
                 lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
-            # print(this_nobs.keys())
-            # breakpoint()
-
             nobs_features = self.obs_encoder(this_nobs)
             # reshape back to B, Do
             global_cond = nobs_features.reshape(batch_size, -1)
-            if text_latents is not None:
-                global_cond = torch.cat([global_cond, text_latents], dim=-1)
         else:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, lambda x: x.reshape(-1, *x.shape[2:]))

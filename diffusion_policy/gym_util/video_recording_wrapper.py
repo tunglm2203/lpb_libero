@@ -27,8 +27,17 @@ class VideoRecordingWrapper(gym.Wrapper):
     def reset(self, **kwargs):
         obs = super().reset(**kwargs)
         self.frames = list()
-        self.step_count = 1
+        self.step_count = 0
         self.video_recoder.stop()
+        if self.file_path is not None \
+            and ((self.step_count % self.steps_per_render) == 0):
+            if not self.video_recoder.is_ready():
+                self.video_recoder.start(self.file_path)
+
+            frame = self.env.render(
+                mode=self.mode, **self.render_kwargs)
+            assert frame.dtype == np.uint8
+            self.video_recoder.write_frame(frame)
         return obs
     
     def step(self, action):

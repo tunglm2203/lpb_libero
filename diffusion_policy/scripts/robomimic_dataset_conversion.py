@@ -61,17 +61,8 @@ def main(input, output, eval_dir, num_workers):
         for i in tqdm(range(len(converter)), desc="Writing to output"):
             abs_actions, info = results[i]
             demo = out_file[f'data/demo_{i}']
-
-            # Create a new dataset "abs_actions" in the demo
-            if "abs_actions" in demo:
-                del demo["abs_actions"]  # Remove it if it already exists (to avoid conflicts)
-            demo.create_dataset(
-                "abs_actions", 
-                data=abs_actions, 
-                # compression="gzip",  # Optional: compress for efficiency
-                chunks=True  # Enable chunking for better I/O performance
-            )
-
+            demo['actions'][:] = abs_actions
+    
     # save eval
     if do_eval:
         eval_dir.mkdir(parents=False, exist_ok=True)

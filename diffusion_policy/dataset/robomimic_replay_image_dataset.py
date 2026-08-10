@@ -9,8 +9,6 @@ import shutil
 import copy
 import json
 import hashlib
-import traceback
-
 from filelock import FileLock
 from threadpoolctl import threadpool_limits
 import concurrent.futures
@@ -78,7 +76,6 @@ class RobomimicReplayImageDataset(BaseImageDataset):
                         raise e
                 else:
                     print('Loading cached ReplayBuffer from Disk.')
-                    print('cache_zarr_path ', cache_zarr_path)
                     with zarr.ZipStore(cache_zarr_path, mode='r') as zip_store:
                         replay_buffer = ReplayBuffer.copy_from_store(
                             src_store=zip_store, store=zarr.MemoryStore())
@@ -135,11 +132,6 @@ class RobomimicReplayImageDataset(BaseImageDataset):
         self.pad_before = pad_before
         self.pad_after = pad_after
         self.use_legacy_normalizer = use_legacy_normalizer
-        print('episode ends ', replay_buffer.episode_ends[:])
-        # print('agentview_image', replay_buffer['agentview_image'].shape)
-        # print('robot0_eef_pos ', replay_buffer['robot0_eef_pos'].shape)
-        print('action ', replay_buffer['action'].shape)
-        print('abs_action ', replay_buffer['abs_action'].shape)
 
     def get_validation_dataset(self):
         val_set = copy.copy(self)
@@ -157,11 +149,7 @@ class RobomimicReplayImageDataset(BaseImageDataset):
         normalizer = LinearNormalizer()
 
         # action
-        if self.abs_action:
-            stat = array_to_stats(self.replay_buffer['abs_action'])
-        else:
-            stat = array_to_stats(self.replay_buffer['action'])
-
+        stat = array_to_stats(self.replay_buffer['action'])
         if self.abs_action:
             if stat['mean'].shape[-1] > 10:
                 # dual arm
@@ -205,6 +193,7 @@ class RobomimicReplayImageDataset(BaseImageDataset):
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         threadpool_limits(1)
         data = self.sampler.sample_sequence(idx)
+
         # to save RAM, only return first n_obs_steps of OBS
         # since the rest will be discarded anyway.
         # when self.n_obs_steps is None
@@ -223,16 +212,11 @@ class RobomimicReplayImageDataset(BaseImageDataset):
         for key in self.lowdim_keys:
             obs_dict[key] = data[key][T_slice].astype(np.float32)
             del data[key]
-        if self.abs_action:
-            torch_data = {
-                'obs': dict_apply(obs_dict, torch.from_numpy),
-                'action': torch.from_numpy(data['abs_action'].astype(np.float32))
-            }
-        else:
-            torch_data = {
-                'obs': dict_apply(obs_dict, torch.from_numpy),
-                'action': torch.from_numpy(data['action'].astype(np.float32))
-            }
+
+        torch_data = {
+            'obs': dict_apply(obs_dict, torch.from_numpy),
+            'action': torch.from_numpy(data['action'].astype(np.float32))
+        }
         return torch_data
 
 
@@ -258,27 +242,7 @@ def _convert_actions(raw_actions, abs_action, rotation_transformer):
         actions = raw_actions
     return actions
 
-def undo_transform_action(action, rotation_transformer):
-    raw_shape = action.shape
-    if raw_shape[-1] == 20:
-        # dual arm
-        action = action.reshape(-1,2,10)
 
-    d_rot = action.shape[-1] - 4
-    pos = action[...,:3]
-    rot = action[...,3:3+d_rot]
-    gripper = action[...,[-1]]
-    rot = rotation_transformer.inverse(rot)
-    uaction = np.concatenate([
-        pos, rot, gripper
-    ], axis=-1)
-
-    if raw_shape[-1] == 20:
-        # dual arm
-        uaction = uaction.reshape(*raw_shape[:-1], 14)
-
-    return uaction
-    
 def _convert_robomimic_to_replay(store, shape_meta, dataset_path, abs_action, rotation_transformer, 
         n_workers=None, max_inflight_tasks=None):
     if n_workers is None:
@@ -319,31 +283,23 @@ def _convert_robomimic_to_replay(store, shape_meta, dataset_path, abs_action, ro
         _ = meta_group.array('episode_ends', episode_ends, 
             dtype=np.int64, compressor=None, overwrite=True)
 
-
         # save lowdim data
-        extra_keys = ['action', 'abs_action']
-        for key in tqdm(lowdim_keys + extra_keys, desc="Loading lowdim data"):
+        for key in tqdm(lowdim_keys + ['action'], desc="Loading lowdim data"):
             data_key = 'obs/' + key
             if key == 'action':
                 data_key = 'actions'
-            elif key == 'abs_action':
-                data_key = 'abs_actions'
-            elif key == 'rewards':
-                data_key = 'rewards'
             this_data = list()
             for i in range(len(demos)):
                 demo = demos[f'demo_{i}']
                 this_data.append(demo[data_key][:].astype(np.float32))
             this_data = np.concatenate(this_data, axis=0)
-
-            if key == 'rewards':
-                this_data = this_data[..., None]
-            if key == 'action' or key == 'abs_action':
+            if key == 'action':
                 this_data = _convert_actions(
                     raw_actions=this_data,
                     abs_action=abs_action,
                     rotation_transformer=rotation_transformer
                 )
+                assert this_data.shape == (n_steps,) + tuple(shape_meta['action']['shape'])
             else:
                 assert this_data.shape == (n_steps,) + tuple(shape_meta['obs'][key]['shape'])
             _ = data_group.array(
@@ -361,9 +317,8 @@ def _convert_robomimic_to_replay(store, shape_meta, dataset_path, abs_action, ro
                 # make sure we can successfully decode
                 _ = zarr_arr[zarr_idx]
                 return True
-            except Exception:
-                traceback.print_exc()
-                raise   
+            except Exception as e:
+                return False
         
         with tqdm(total=n_steps*len(rgb_keys), desc="Loading image data", mininterval=1.0) as pbar:
             # one chunk per thread, therefore no synchronization needed
@@ -373,8 +328,7 @@ def _convert_robomimic_to_replay(store, shape_meta, dataset_path, abs_action, ro
                     data_key = 'obs/' + key
                     shape = tuple(shape_meta['obs'][key]['shape'])
                     c,h,w = shape
-                    # this_compressor = Jpeg2k(level=20)s
-                    this_compressor = None
+                    this_compressor = Jpeg2k(level=50)
                     img_arr = data_group.require_dataset(
                         name=key,
                         shape=(n_steps,h,w,c),

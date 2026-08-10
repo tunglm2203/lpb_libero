@@ -16,10 +16,10 @@ shape_meta: &shape_meta
 env_runner:
   _target_: diffusion_policy.env_runner.pusht_image_runner.PushTImageRunner
   n_train: 6
-  n_train_vis: 2
+  n_train_vis: 0
   train_start_seed: 0
   n_test: 50
-  n_test_vis: 4
+  n_test_vis: 0
   legacy_test: True
   test_start_seed: 100000
   max_steps: 300

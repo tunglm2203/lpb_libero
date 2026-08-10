@@ -63,13 +63,14 @@ def load_normalizer(checkpoint_path: str, policy):
 
 
 if __name__ == "__main__":
-    checkpoint = '/pfss/mlde/workspaces/mlde_wsp_MGPATH/VLA/lpb_libero/logs/reproduce/aloha_image/None/2026.06.02_03.50.28_train_diffusion_unet_hybrid_aloha_image/checkpoints/0.ckpt'
+    checkpoint = '/home/binhng/Workspace/spcorl/cpkt/dp_aloha_40epoch/checkpoints/40.ckpt'
     payload = torch.load(open(checkpoint, 'rb'), pickle_module=dill)
 
     ## Load payload
     cfg = payload['cfg']
     cls = hydra.utils.get_class(cfg._target_)
-    cfg = setup_noise_schedule(cfg, noise_scheduler='ddpm', num_inference_steps=100)
+    # cfg = setup_noise_schedule(cfg, noise_scheduler='ddpm', num_inference_steps=100)
+    cfg = setup_noise_schedule(cfg, noise_scheduler='ddim', num_inference_steps=16)
     workspace = cls(cfg)
     workspace: BaseWorkspace
     exclude_keys = ['optimizer']

@@ -239,4 +239,3 @@ class ConditionalUnet1D(nn.Module):
 
         x = einops.rearrange(x, 'b t h -> b h t')
         return x
-

@@ -156,23 +156,18 @@ class PrefReplayBuffer:
         """
         Add a pair of episodes (obs/action for each trajectory) along with metadata (votes).
         """
-        # assert 'obs' in data and 'obs_2' in data, "obs and obs_2 keys are required"
-        # assert 'action' in data and 'action_2' in data, "action and action_2 keys are required"
-
-        all_keys = data.keys()
-        key_traj1 = [k for k in all_keys if not k.endswith('_2')]
-        key_traj2 = [k for k in all_keys if k.endswith('_2')]
+        assert 'obs' in data and 'obs_2' in data, "obs and obs_2 keys are required"
+        assert 'action' in data and 'action_2' in data, "action and action_2 keys are required"
         
         is_zarr = isinstance(self.root, zarr.Group)
         curr_len = len(self.root['meta']['votes'])
-        episode_length = len(data[key_traj1[0]])
+        episode_length = len(data['obs'])
         new_len = curr_len + 1
 
         # Add trajectory 1
-        for key in key_traj1:
+        for key in ['obs', 'action']:
             # Create the new shape to accommodate all time steps
             value = data[key]
-
             new_shape = (new_len,) + (episode_length,) + data[key].shape[1:]  # This will set (new_len, T, dim)
 
             if key not in self.root['data']:
@@ -196,7 +191,7 @@ class PrefReplayBuffer:
 
 
         # Add trajectory 2 (obs_2, action_2)
-        for key in key_traj2:
+        for key in ['obs_2', 'action_2']:
             value = data[key]
             # Create the new shape to accommodate all time steps
             new_shape = (new_len,) + (episode_length,) + data[key].shape[1:]  # This will set (new_len, T, dim)
@@ -269,39 +264,32 @@ class PrefReplayBuffer:
         """
         Get a pair of episodes by index, including observation and action sequences for both trajectories.
         """
-
         if copy:
-            data = {}
-            for key in self.root['data'].keys():
-                if key in ['abs_action', 'rewards']:
-                    continue
-                data[key] = self.root['data'][key][idx].copy()
-
-            data.update({
+            return {
+                'obs': self.root['data']['obs'][idx].copy(),
+                'action': self.root['data']['action'][idx].copy(),
+                'obs_2': self.root['data']['obs_2'][idx].copy(),
+                'action_2': self.root['data']['action_2'][idx].copy(),
                 'votes': self.root['meta']['votes'][idx].copy(),
                 'votes_2': self.root['meta']['votes_2'][idx].copy(),
                 'length': self.root['meta']['length'][idx].copy(),
                 'length_2': self.root['meta']['length_2'][idx].copy(),
                 'beta_priori': self.root['meta']['beta_priori'][idx].copy(),
                 'beta_priori_2': self.root['meta']['beta_priori_2'][idx].copy(),
-            })
-            return data
+            }
         else:
-            data = {}
-            for key in self.root['data'].keys():
-                if key in ['abs_action', 'abs_action_2', 'rewards', 'rewards_2']:
-                    continue
-                data[key] = self.root['data'][key][idx]
-
-            data.update({
+            return {
+                'obs': self.root['data']['obs'][idx],
+                'action': self.root['data']['action'][idx],
+                'obs_2': self.root['data']['obs_2'][idx],
+                'action_2': self.root['data']['action_2'][idx],
                 'votes': self.root['meta']['votes'][idx],
                 'votes_2': self.root['meta']['votes_2'][idx],
                 'length': self.root['meta']['length'][idx],
                 'length_2': self.root['meta']['length_2'][idx],
                 'beta_priori': self.root['meta']['beta_priori'][idx],
                 'beta_priori_2': self.root['meta']['beta_priori_2'][idx],
-            })
-            return data
+            }
 
     def get_episode_slice(self, idx):
         """

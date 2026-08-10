@@ -441,9 +441,10 @@ class ReplayBuffer:
         return lengths
 
     def add_episode(self, 
-            data: Dict[str, np.ndarray], 
-            chunks: Optional[Dict[str,tuple]]=dict(),
-            compressors: Union[str, numcodecs.abc.Codec, dict]=dict()):
+                    data: Dict[str, np.ndarray],
+                    meta_data: Optional[Dict[str, Union[np.ndarray, int]]] = None,
+                    chunks: Optional[Dict[str, tuple]] = dict(),
+                    compressors: Union[str, numcodecs.abc.Codec, dict] = dict()):
         assert(len(data) > 0)
         is_zarr = (self.backend == 'zarr')
 
@@ -485,7 +486,7 @@ class ReplayBuffer:
                     arr.resize(new_shape, refcheck=False)
             # copy data
             arr[-value.shape[0]:] = value
-        
+
         # append to episode ends
         episode_ends = self.episode_ends
         if is_zarr:
@@ -493,6 +494,17 @@ class ReplayBuffer:
         else:
             episode_ends.resize(episode_ends.shape[0] + 1, refcheck=False)
         episode_ends[-1] = new_len
+
+        # add meta data, e.g., votes
+        if meta_data is not None:
+            for key, value in meta_data.items():
+                if key in self.meta:
+                    meta_arr = self.meta[key]
+                    if is_zarr:
+                        meta_arr.resize(meta_arr.shape[0] + 1)
+                    else:
+                        meta_arr.resize(meta_arr.shape[0] + 1, refcheck=False)
+                    meta_arr[-1] = value
 
         # rechunk
         if is_zarr:
@@ -528,8 +540,7 @@ class ReplayBuffer:
         self.add_episode(data)
 
     def get_episode(self, idx, keys=None, copy=False):
-        # idx = list(range(len(self.episode_ends)))[idx]
-        # print(idx)
+        idx = list(range(len(self.episode_ends)))[idx]
         start_idx = 0
         if idx > 0:
             start_idx = self.episode_ends[idx-1]
@@ -598,3 +609,7 @@ class ReplayBuffer:
                 compressor = self.resolve_compressor(value)
                 if compressor != arr.compressor:
                     rechunk_recompress_array(self.data, key, compressor=compressor)
+
+    def get_votes(self) -> np.ndarray:
+        return self.meta['votes'][:]
+

@@ -12,8 +12,7 @@ import torch.nn.functional as F
 from pathlib import Path
 import copy
 from torch.optim.lr_scheduler import SequentialLR, LinearLR, CosineAnnealingLR
-# from diffusion_policy.policy.diffusion_transformer_hybrid_image_policy import DiffusionUnetHybridImagePolicy
-from diffusion_policy.policy.diffusion_unet_hybrid_image_policy import DiffusionUnetHybridImagePolicy
+from diffusion_policy.policy.diffusion_transformer_hybrid_image_policy import DiffusionTransformerHybridImagePolicy
 from diffusion_policy.common.pytorch_util import dict_apply
 
 import time
@@ -511,7 +510,7 @@ class BetaNetwork(nn.Module):
 
 
 class BetaImageNetwork(nn.Module):
-    def __init__(self, data, policy: DiffusionUnetHybridImagePolicy, device=torch.device('cuda'), data_size = 500, ):
+    def __init__(self, data, policy: DiffusionTransformerHybridImagePolicy, device=torch.device('cuda'), data_size = 500, ):
         super(BetaNetwork, self).__init__()
 
         act_data = np.concatenate((data['action'], data['action_2']), axis=0)

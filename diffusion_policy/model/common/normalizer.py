@@ -279,84 +279,75 @@ def _normalize(x, params, forward=True):
 
 
 def test():
-    # data = torch.zeros((100,10,9,2)).uniform_()
-    # data[...,0,0] = 0
+    data = torch.zeros((100,10,9,2)).uniform_()
+    data[...,0,0] = 0
 
-    # normalizer = SingleFieldLinearNormalizer()
-    # normalizer.fit(data, mode='limits', last_n_dims=2)
-    # datan = normalizer.normalize(data)
-    # assert datan.shape == data.shape
-    # assert np.allclose(datan.max(), 1.)
-    # assert np.allclose(datan.min(), -1.)
-    # dataun = normalizer.unnormalize(datan)
-    # assert torch.allclose(data, dataun, atol=1e-7)
+    normalizer = SingleFieldLinearNormalizer()
+    normalizer.fit(data, mode='limits', last_n_dims=2)
+    datan = normalizer.normalize(data)
+    assert datan.shape == data.shape
+    assert np.allclose(datan.max(), 1.)
+    assert np.allclose(datan.min(), -1.)
+    dataun = normalizer.unnormalize(datan)
+    assert torch.allclose(data, dataun, atol=1e-7)
 
-    # input_stats = normalizer.get_input_stats()
-    # output_stats = normalizer.get_output_stats()
+    input_stats = normalizer.get_input_stats()
+    output_stats = normalizer.get_output_stats()
 
-    # normalizer = SingleFieldLinearNormalizer()
-    # normalizer.fit(data, mode='limits', last_n_dims=1, fit_offset=False)
-    # datan = normalizer.normalize(data)
-    # assert datan.shape == data.shape
-    # assert np.allclose(datan.max(), 1., atol=1e-3)
-    # assert np.allclose(datan.min(), 0., atol=1e-3)
-    # dataun = normalizer.unnormalize(datan)
-    # assert torch.allclose(data, dataun, atol=1e-7)
+    normalizer = SingleFieldLinearNormalizer()
+    normalizer.fit(data, mode='limits', last_n_dims=1, fit_offset=False)
+    datan = normalizer.normalize(data)
+    assert datan.shape == data.shape
+    assert np.allclose(datan.max(), 1., atol=1e-3)
+    assert np.allclose(datan.min(), 0., atol=1e-3)
+    dataun = normalizer.unnormalize(datan)
+    assert torch.allclose(data, dataun, atol=1e-7)
 
-    # data = torch.zeros((100,10,9,2)).uniform_()
-    # normalizer = SingleFieldLinearNormalizer()
-    # normalizer.fit(data, mode='gaussian', last_n_dims=0)
-    # datan = normalizer.normalize(data)
-    # assert datan.shape == data.shape
-    # assert np.allclose(datan.mean(), 0., atol=1e-3)
-    # assert np.allclose(datan.std(), 1., atol=1e-3)
-    # dataun = normalizer.unnormalize(datan)
-    # assert torch.allclose(data, dataun, atol=1e-7)
+    data = torch.zeros((100,10,9,2)).uniform_()
+    normalizer = SingleFieldLinearNormalizer()
+    normalizer.fit(data, mode='gaussian', last_n_dims=0)
+    datan = normalizer.normalize(data)
+    assert datan.shape == data.shape
+    assert np.allclose(datan.mean(), 0., atol=1e-3)
+    assert np.allclose(datan.std(), 1., atol=1e-3)
+    dataun = normalizer.unnormalize(datan)
+    assert torch.allclose(data, dataun, atol=1e-7)
 
 
-    # # dict
-    # data = torch.zeros((100,10,9,2)).uniform_()
-    # data[...,0,0] = 0
+    # dict
+    data = torch.zeros((100,10,9,2)).uniform_()
+    data[...,0,0] = 0
 
-    # normalizer = LinearNormalizer()
-    # normalizer.fit(data, mode='limits', last_n_dims=2)
-    # datan = normalizer.normalize(data)
-    # assert datan.shape == data.shape
-    # assert np.allclose(datan.max(), 1.)
-    # assert np.allclose(datan.min(), -1.)
-    # dataun = normalizer.unnormalize(datan)
-    # assert torch.allclose(data, dataun, atol=1e-7)
+    normalizer = LinearNormalizer()
+    normalizer.fit(data, mode='limits', last_n_dims=2)
+    datan = normalizer.normalize(data)
+    assert datan.shape == data.shape
+    assert np.allclose(datan.max(), 1.)
+    assert np.allclose(datan.min(), -1.)
+    dataun = normalizer.unnormalize(datan)
+    assert torch.allclose(data, dataun, atol=1e-7)
 
-    # input_stats = normalizer.get_input_stats()
-    # output_stats = normalizer.get_output_stats()
+    input_stats = normalizer.get_input_stats()
+    output_stats = normalizer.get_output_stats()
 
     data = {
         'obs': torch.zeros((1000,128,9,2)).uniform_() * 512,
-        # 'action': torch.zeros((1000,128,2)).uniform_() * 512
+        'action': torch.zeros((1000,128,2)).uniform_() * 512
     }
-
-    data['obs'] = torch.Tensor([[425.85577,   335.6433,    279.6031,    309.65518,     4.8608656],
-    [424.454,     336.71973,   228.00578,    298.72943,     4.9681644],
-    [419.3407,    338.952,     221.19016,    311.1368,     4.6928596],
-    [410.71237,   341.44107,   211.57191,    368.01144,     4.6887197]])
     normalizer = LinearNormalizer()
-    normalizer.fit(data, last_n_dims=1)
+    normalizer.fit(data)
     datan = normalizer.normalize(data)
     dataun = normalizer.unnormalize(datan)
     for key in data:
         assert torch.allclose(data[key], dataun[key], atol=1e-4)
     
-    # input_stats = normalizer.get_input_stats()
-    # output_stats = normalizer.get_output_stats()
+    input_stats = normalizer.get_input_stats()
+    output_stats = normalizer.get_output_stats()
 
-    # state_dict = normalizer.state_dict()
-    # n = LinearNormalizer()
-    # n.load_state_dict(state_dict)
-    # datan = n.normalize(data)
-    # dataun = n.unnormalize(datan)
-    # for key in data:
-    #     assert torch.allclose(data[key], dataun[key], atol=1e-4)
-
-
-# if __name__ == '__main__':
-#     test()
+    state_dict = normalizer.state_dict()
+    n = LinearNormalizer()
+    n.load_state_dict(state_dict)
+    datan = n.normalize(data)
+    dataun = n.unnormalize(datan)
+    for key in data:
+        assert torch.allclose(data[key], dataun[key], atol=1e-4)

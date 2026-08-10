@@ -1,0 +1,125 @@
+defaults:
+  - _self_
+  - task: lift_lowdim_abs
+
+name: train_shortcut_mlp_lowdim
+_target_: diffusion_policy.workspace.train_shortcutflow_mlp_lowdim_workspace.TrainShortcutFlowMlpLowdimWorkspace
+
+obs_dim: ${task.obs_dim}
+action_dim: ${task.action_dim}
+task_name: ${task.name}
+
+horizon: 9
+n_obs_steps: 2
+n_action_steps: 8
+n_latency_steps: 0
+past_action_visible: False
+denoising_steps: 20
+include_reward: False
+
+test_clip_intermediate_actions: True
+test_denoising_steps: 20
+test_model_type: 'ema'  # can be "ema", "original"
+
+policy:
+  _target_: diffusion_policy.policy.shortcutflow_mlp_lowdim_policy.ShortcutFlowMlpLowdimPolicy
+
+  model:
+    _target_: diffusion_policy.model.flow.mlp_shortcut.ShortCutFlowMLP
+    horizon_steps: ${eval:'${horizon}-${n_obs_steps}+1'}
+    action_dim: ${action_dim}
+    cond_dim: ${eval:'${obs_dim}*${n_obs_steps}'}
+    td_emb_dim: 32
+    mlp_dims: [1024, 1024, 1024]
+    cond_mlp_dims: [32, 32]
+    activation_type: ReLU
+    out_activation_type: Identity
+    use_layernorm: false
+    residual_style: true
+    embed_combination_type: 'add'
+
+  horizon_steps: ${eval:'${horizon}-${n_obs_steps}+1'}
+  obs_dim: ${obs_dim}
+  action_dim: ${action_dim}
+  n_action_steps: ${eval:'${n_action_steps}+${n_latency_steps}'}
+  n_obs_steps: ${n_obs_steps}
+  max_denoising_steps: ${denoising_steps}
+  self_consistency_k: 0.25
+  delta: 1e-5
+  sample_t_type: uniform # beta, logitnormal
+
+ema:
+  decay: 0.995
+
+dataloader:
+  batch_size: 256
+  num_workers: 1
+  shuffle: True
+  pin_memory: True
+  persistent_workers: False
+
+val_dataloader:
+  batch_size: 256
+  num_workers: 1
+  shuffle: False
+  pin_memory: True
+  persistent_workers: False
+
+optimizer:
+  lr: 1e-4
+  weight_decay: 1e-6
+
+training:
+  device: "cuda:0"
+  seed: 42
+  debug: False
+  resume: False
+  # optimization
+  lr_scheduler:
+    first_cycle_steps: 1000
+    warmup_steps: 50
+    min_lr: 1e-5
+  epoch_start_ema: 20
+  update_ema_freq: 10
+  num_epochs: 1000
+  use_ema: True
+  # training loop control
+  # in epochs
+  rollout_every: 10
+  checkpoint_every: 50
+  val_every: 1
+  max_train_steps: null
+  max_val_steps: null
+  # misc
+  tqdm_interval_sec: 1.0
+
+logging:
+  project: IL-DP-2026
+  resume: False
+  mode: online
+  name: ${name}_${training.seed}
+  tags: ["${task_name}"]
+  id: null
+  group: ${name}
+
+checkpoint:
+  topk:
+    monitor_key: test_mean_score
+    mode: max
+    k: 3
+    format_str: 'epoch={epoch:04d}-test_mean_score={test_mean_score:.3f}.ckpt'
+  save_last_ckpt: True
+  save_last_snapshot: False
+
+multi_run:
+  run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+  wandb_name_base: ${name}_${task_name}
+
+hydra:
+  job:
+    override_dirname: ${name}
+  run:
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+  sweep:
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+    subdir: ${hydra.job.num}

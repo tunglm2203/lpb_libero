@@ -85,6 +85,7 @@ def get_env_domain_for_multistep_wrapper(env):
 
     return env_domain
 
+
 class MultiStepWrapper(gym.Wrapper):
     def __init__(self, 
             env, 
@@ -100,7 +101,6 @@ class MultiStepWrapper(gym.Wrapper):
         self.n_obs_steps = n_obs_steps
         self.n_action_steps = n_action_steps
         self.reward_agg_method = reward_agg_method
-        self.n_obs_steps = n_obs_steps
 
         self.obs = deque(maxlen=n_obs_steps+1)
         self.reward = list()
@@ -108,10 +108,11 @@ class MultiStepWrapper(gym.Wrapper):
         self.info = defaultdict(lambda : deque(maxlen=n_obs_steps+1))
         self.all_infos = list()
         self.step_elapsed = 0
-    
+
     def reset(self):
         """Resets the environment using kwargs."""
         obs = super().reset()
+        self.step_elapsed = 0
 
         self.obs = deque([obs], maxlen=self.n_obs_steps+1)
         self.reward = list()
@@ -120,12 +121,13 @@ class MultiStepWrapper(gym.Wrapper):
         self.all_infos = list()
 
         obs = self._get_obs(self.n_obs_steps)
-        # env_domain = get_env_domain_for_multistep_wrapper(self.env)
-        # if env_domain == "robomimic":
-        init_info = self.env.env.env.get_state()
-        success = self.env.env.env.is_success()["task"]
-        init_info.update({"success": float(success)})
-        self.all_infos.append(init_info)
+        env_domain = get_env_domain_for_multistep_wrapper(self.env)
+        if env_domain == "robomimic":
+            init_info = self.env.env.env.get_state()
+            success = self.env.env.env.is_success()["task"]
+            init_info.update({"success": float(success)})
+            self.all_infos.append(init_info)
+
         return obs
 
     def step(self, action):
@@ -137,6 +139,7 @@ class MultiStepWrapper(gym.Wrapper):
                 # termination
                 break
             observation, reward, done, info = super().step(act)
+            self.step_elapsed += 1
 
             self.obs.append(observation)
             self.reward.append(reward)

@@ -1,0 +1,130 @@
+defaults:
+  - _self_
+  - task: aloha
+
+name: train_reflow_transformer_image
+_target_: diffusion_policy.workspace.train_reflow_transformer_hybrid_workspace.TrainReFlowTransformerHybridWorkspace
+
+shape_meta: ${task.shape_meta}
+task_name: ${task.name}
+
+horizon: 10   # this horizon is for dataloader
+n_obs_steps: 2
+n_action_steps: 8
+n_latency_steps: 0
+dataset_obs_steps: ${n_obs_steps}
+past_action_visible: False
+pretrained_checkpoint: null   # only read when training.resume is True
+
+# Used during evaluation (both during training and evaluation)
+test_clip_intermediate_actions: True
+test_denoising_steps: 8
+test_model_type: 'original'  # can be "ema", "original"
+
+policy:
+  _target_: diffusion_policy.policy.reflow_transformer_hybrid_image_policy.ReFlowTransformerHybridImagePolicy
+
+  shape_meta: ${shape_meta}
+
+  # the flow transports the action chunk starting at the current step,
+  # so the policy horizon is shorter than the dataloader horizon
+  horizon: ${eval:'${horizon}-${n_obs_steps}+1'}
+  n_action_steps: ${eval:'${n_action_steps}+${n_latency_steps}'}
+  n_obs_steps: ${n_obs_steps}
+
+  crop_shape: [76, 76]
+  obs_encoder_group_norm: True
+  eval_fixed_crop: True
+
+  n_layer: 8
+  n_head: 4
+  n_emb: 256
+  p_drop_emb: 0.0
+  p_drop_attn: 0.3
+
+  causal_attn: True
+  time_as_cond: True # if false, use BERT like encoder only arch, time as input
+  n_cond_layers: 0 # >0: use transformer encoder for cond, otherwise use MLP
+
+  sample_t_type: uniform # beta, logitnormal
+  # test_denoising_steps / test_clip_intermediate_actions are passed by the
+  # workspace from the top-level keys above
+
+ema:
+  decay: 0.995
+
+dataloader:
+  batch_size: 64
+  num_workers: 8
+  shuffle: True
+  pin_memory: True
+  persistent_workers: False
+
+val_dataloader:
+  batch_size: 64
+  num_workers: 8
+  shuffle: False
+  pin_memory: True
+  persistent_workers: False
+
+optimizer:
+  transformer_weight_decay: 1.0e-3
+  obs_encoder_weight_decay: 1.0e-6
+  learning_rate: 1.0e-4
+  betas: [0.9, 0.95]
+
+training:
+  device: "cuda:0"
+  seed: 42
+  debug: False
+  resume: False
+  # optimization
+  lr_scheduler:
+    first_cycle_steps: ${training.num_epochs}
+    warmup_steps: 50
+    min_lr: 1e-5
+  epoch_start_ema: 20
+  update_ema_freq: 10
+  num_epochs: 1000
+  use_ema: True
+  # training loop control
+  # in epochs
+  rollout_every: 50
+  checkpoint_every: 50
+  val_every: 1
+  sample_every: 5
+  max_train_steps: null
+  max_val_steps: null
+  # misc
+  tqdm_interval_sec: 1.0
+
+logging:
+  project: IL-DP-2026
+  resume: False
+  mode: online
+  name: ${name}_${training.seed}
+  tags: ["${task_name}"]
+  id: null
+  group: ${name}
+
+checkpoint:
+  topk:
+    monitor_key: test_mean_score
+    mode: max
+    k: 3
+    format_str: 'epoch={epoch:04d}-test_mean_score={test_mean_score:.3f}.ckpt'
+  save_last_ckpt: True
+  save_last_snapshot: False
+
+multi_run:
+  run_dir: logs/reproduce/${task_name}/${logging.group}/${logging.name}
+  wandb_name_base: ${name}_${training.seed}
+
+hydra:
+  job:
+    override_dirname: ${name}
+  run:
+    dir: logs/reproduce/${task_name}/${logging.group}/${logging.name}
+  sweep:
+    dir: logs/reproduce/${task_name}/${logging.group}/${logging.name}
+    subdir: ${hydra.job.num}

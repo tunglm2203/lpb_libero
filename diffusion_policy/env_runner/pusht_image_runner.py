@@ -32,7 +32,7 @@ class PushTImageRunner(BaseImageRunner):
             n_action_steps=8,
             fps=10,
             crf=22,
-            render_size=140,
+            render_size=96,
             past_action=False,
             tqdm_interval_sec=5.0,
             n_envs=None
@@ -120,7 +120,14 @@ class PushTImageRunner(BaseImageRunner):
             env_seeds.append(seed)
             env_prefixs.append('test/')
             env_init_fn_dills.append(dill.dumps(init_fn))
+
         env = AsyncVectorEnv(env_fns)
+
+        # test env
+        # env.reset(seed=env_seeds)
+        # x = env.step(env.action_space.sample())
+        # imgs = env.call('render')
+        # import pdb; pdb.set_trace()
 
         self.env = env
         self.env_fns = env_fns
@@ -188,8 +195,9 @@ class PushTImageRunner(BaseImageRunner):
                         device=device))
 
                 # run policy
-                # with torch.no_grad():
-                action_dict = policy.predict_action(obs_dict)
+                with torch.no_grad():
+                    action_dict = policy.predict_action(obs_dict)
+
                 # device_transfer
                 np_action_dict = dict_apply(action_dict,
                     lambda x: x.detach().to('cpu').numpy())
@@ -210,6 +218,7 @@ class PushTImageRunner(BaseImageRunner):
         # clear out video buffer
         _ = env.reset()
 
+        # log
         max_rewards = collections.defaultdict(list)
         log_data = dict()
         # results reported in the paper are generated using the commented out line below

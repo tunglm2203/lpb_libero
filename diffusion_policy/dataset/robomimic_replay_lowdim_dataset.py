@@ -4,6 +4,7 @@ import numpy as np
 import h5py
 from tqdm import tqdm
 import copy
+from termcolor import colored
 from diffusion_policy.common.pytorch_util import dict_apply
 from diffusion_policy.dataset.base_dataset import BaseLowdimDataset, LinearNormalizer
 from diffusion_policy.model.common.normalizer import LinearNormalizer, SingleFieldLinearNormalizer
@@ -34,7 +35,12 @@ class RobomimicReplayLowdimDataset(BaseLowdimDataset):
             use_legacy_normalizer=False,
             seed=42,
             val_ratio=0.0,
-            max_train_episodes=None
+            max_train_episodes=None,
+            dense_reward=False,
+            include_reward=False,
+            mixed_bc=False,
+            filtered_bc=False,
+            rollout_data=None
         ):
         obs_keys = list(obs_keys)
         rotation_transformer = RotationTransformer(
@@ -50,9 +56,11 @@ class RobomimicReplayLowdimDataset(BaseLowdimDataset):
                     raw_actions=demo['actions'][:].astype(np.float32),
                     obs_keys=obs_keys,
                     abs_action=abs_action,
-                    rotation_transformer=rotation_transformer)
+                    rotation_transformer=rotation_transformer,
+                    raw_rewards=(demo['rewards'][:] if dense_reward else demo['success'][:]) if include_reward else None,
+                )
                 replay_buffer.add_episode(episode)
-
+        
         val_mask = get_val_mask(
             n_episodes=replay_buffer.n_episodes, 
             val_ratio=val_ratio,
@@ -63,21 +71,58 @@ class RobomimicReplayLowdimDataset(BaseLowdimDataset):
             max_n=max_train_episodes, 
             seed=seed)
 
+        self.replay_buffer = replay_buffer   # Assign replay buffer here to get normalizer from demos only
+        self.abs_action = abs_action
+        self.use_legacy_normalizer = use_legacy_normalizer
+        self.dataset_normalizer = None
+        self.get_normalizer()
+
+        if mixed_bc or filtered_bc:
+            assert max_train_episodes is None, "If we train with mixed or filtered BC, do not set: max_train_episodes"
+            assert (not mixed_bc and filtered_bc) or (mixed_bc and not filtered_bc), "Only one of mixed_bc and filtered_bc can be True"
+            assert rollout_data is not None
+            n_rollouts_added = 0
+            with h5py.File(rollout_data, 'r') as f:
+                demos = list(f["data"].keys())
+                inds = np.argsort([int(elem.split("_")[-1]) for elem in demos])
+                demos = [demos[i] for i in inds]
+
+                for idx in tqdm(range(len(demos)), desc="Loading rollout data to ReplayBuffer"):
+                    ep = demos[idx]
+                    demo = f['data'][ep]
+                    if filtered_bc:
+                        if (demo['successes'][:] == 0).all():  # only add successful rollouts
+                            continue
+
+                    episode = {
+                        'obs': demo['obs'][:].astype(np.float32),
+                        'action': demo['actions'][:].astype(np.float32),
+                    }
+                    if include_reward:
+                        episode.update({'reward': demo['rewards'][:].astype(np.float32) if dense_reward else demo['successes'][:].astype(np.float32)})
+                    self.replay_buffer.add_episode(episode)
+                    n_rollouts_added += 1
+            print(colored(f"=============> Number of expert demo: {train_mask.sum()}", "yellow"))
+            print(colored(f"=============> Added {n_rollouts_added} rollouts to replay buffer", "yellow"))
+            val_mask = np.concatenate([val_mask, np.zeros((n_rollouts_added, ), dtype=val_mask.dtype)])
+            train_mask = np.concatenate([train_mask, np.ones(n_rollouts_added, dtype=train_mask.dtype)])
+
         sampler = SequenceSampler(
             replay_buffer=replay_buffer, 
             sequence_length=horizon,
             pad_before=pad_before, 
             pad_after=pad_after,
             episode_mask=train_mask)
-        
-        self.replay_buffer = replay_buffer
+
+        # self.replay_buffer = replay_buffer
         self.sampler = sampler
-        self.abs_action = abs_action
+        # self.abs_action = abs_action
         self.train_mask = train_mask
         self.horizon = horizon
         self.pad_before = pad_before
         self.pad_after = pad_after
-        self.use_legacy_normalizer = use_legacy_normalizer
+        # self.use_legacy_normalizer = use_legacy_normalizer
+        self.dataset_path = dataset_path
     
     def get_validation_dataset(self):
         val_set = copy.copy(self)
@@ -92,30 +137,33 @@ class RobomimicReplayLowdimDataset(BaseLowdimDataset):
         return val_set
 
     def get_normalizer(self, **kwargs) -> LinearNormalizer:
-        normalizer = LinearNormalizer()
+        if self.dataset_normalizer is None:
+            normalizer = LinearNormalizer()
 
-        # action
-        stat = array_to_stats(self.replay_buffer['action'])
-        if self.abs_action:
-            if stat['mean'].shape[-1] > 10:
-                # dual arm
-                this_normalizer = robomimic_abs_action_only_dual_arm_normalizer_from_stat(stat)
+            # action
+            stat = array_to_stats(self.replay_buffer['action'])
+            if self.abs_action:
+                if stat['mean'].shape[-1] > 10:
+                    # dual arm
+                    this_normalizer = robomimic_abs_action_only_dual_arm_normalizer_from_stat(stat)
+                else:
+                    this_normalizer = robomimic_abs_action_only_normalizer_from_stat(stat)
+
+                if self.use_legacy_normalizer:
+                    this_normalizer = normalizer_from_stat(stat)
             else:
-                this_normalizer = robomimic_abs_action_only_normalizer_from_stat(stat)
-            
-            if self.use_legacy_normalizer:
-                this_normalizer = normalizer_from_stat(stat)
-        else:
-            # already normalized
-            this_normalizer = get_identity_normalizer_from_stat(stat)
-        normalizer['action'] = this_normalizer
-        
-        # aggregate obs stats
-        obs_stat = array_to_stats(self.replay_buffer['obs'])
+                # already normalized
+                this_normalizer = get_identity_normalizer_from_stat(stat)
+            normalizer['action'] = this_normalizer
+
+            # aggregate obs stats
+            obs_stat = array_to_stats(self.replay_buffer['obs'])
 
 
-        normalizer['obs'] = normalizer_from_stat(obs_stat)
-        return normalizer
+            normalizer['obs'] = normalizer_from_stat(obs_stat)
+            self.dataset_normalizer = normalizer
+
+        return self.dataset_normalizer
 
     def get_all_actions(self) -> torch.Tensor:
         return torch.from_numpy(self.replay_buffer['action'])
@@ -138,7 +186,7 @@ def normalizer_from_stat(stat):
         input_stats_dict=stat
     )
     
-def _data_to_obs(raw_obs, raw_actions, obs_keys, abs_action, rotation_transformer):
+def _data_to_obs(raw_obs, raw_actions, obs_keys, abs_action, rotation_transformer, raw_rewards=None):
     obs = np.concatenate([
         raw_obs[key] for key in obs_keys
     ], axis=-1).astype(np.float32)
@@ -163,6 +211,8 @@ def _data_to_obs(raw_obs, raw_actions, obs_keys, abs_action, rotation_transforme
     
     data = {
         'obs': obs,
-        'action': raw_actions
+        'action': raw_actions,
     }
+    if raw_rewards is not None:
+        data.update({'reward': raw_rewards.astype(np.float32)})
     return data

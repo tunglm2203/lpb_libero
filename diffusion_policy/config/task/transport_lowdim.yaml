@@ -10,7 +10,7 @@ obs_keys: &obs_keys [
   'robot1_eef_pos', 'robot1_eef_quat', 'robot1_gripper_qpos'
 ]
 task_name: &task_name transport
-dataset_type: &dataset_type ph
+dataset_type: &dataset_type mh
 dataset_path: &dataset_path data/robomimic/datasets/${task.task_name}/${task.dataset_type}/low_dim.hdf5
 abs_action: &abs_action False
 
@@ -19,10 +19,10 @@ env_runner:
   dataset_path: *dataset_path
   obs_keys: *obs_keys
   n_train: 6
-  n_train_vis: 2
+  n_train_vis: 0
   train_start_idx: 0
   n_test: 50
-  n_test_vis: 5
+  n_test_vis: 0
   test_start_seed: 100000
   max_steps: 700
   n_obs_steps: ${n_obs_steps}
@@ -33,7 +33,7 @@ env_runner:
   crf: 22
   past_action: ${past_action_visible}
   abs_action: *abs_action
-  n_envs: 28
+  n_envs: 25
 # evaluation at this config requires a 16 core 64GB instance.
 
 dataset:

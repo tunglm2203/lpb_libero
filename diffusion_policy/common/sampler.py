@@ -3,6 +3,7 @@ import numpy as np
 import numba
 from diffusion_policy.common.replay_buffer import ReplayBuffer
 
+import pdb
 
 @numba.jit(nopython=True)
 def create_indices(
@@ -47,44 +48,16 @@ def create_indices(
     return indices
 
 
-# def get_val_mask(n_episodes, val_ratio, seed=0):
-#     val_mask = np.zeros(n_episodes, dtype=bool)
-#     if val_ratio <= 0:
-#         return val_mask
-
-#     # have at least 1 episode for validation, and at least 1 episode for train
-#     n_val = min(max(1, round(n_episodes * val_ratio)), n_episodes-1)
-#     rng = np.random.default_rng(seed=seed)
-#     val_idxs = rng.choice(n_episodes, size=n_val, replace=False)
-#     val_mask[val_idxs] = True
-#     return val_mask
-
-
-def get_val_mask(n_episodes, val_ratio, seed=0, random=False):
+def get_val_mask(n_episodes, val_ratio, seed=0):
     val_mask = np.zeros(n_episodes, dtype=bool)
     if val_ratio <= 0:
         return val_mask
 
     # have at least 1 episode for validation, and at least 1 episode for train
-    n_val = min(max(1, round(n_episodes * val_ratio)), n_episodes - 1)
-
-    if random:
-        rng = np.random.default_rng(seed=seed)
-        val_idxs = rng.choice(n_episodes, size=n_val, replace=False)
-    else:
-        x = int(n_episodes * val_ratio)
-        x = max(x, 1)
-        # Mask the last x percent of the episodes
-        val_idxs = np.arange(n_episodes - x, n_episodes)
-        # Mask the first x percent of the episodes
-        # val_idxs = np.arange(0, x)
-
+    n_val = min(max(1, round(n_episodes * val_ratio)), n_episodes-1)
+    rng = np.random.default_rng(seed=seed)
+    val_idxs = rng.choice(n_episodes, size=n_val, replace=False)
     val_mask[val_idxs] = True
-    if len(val_mask) < n_episodes:
-        val_mask = np.concatenate([val_mask, np.zeros(n_episodes - len(val_mask), dtype=bool)])
-    print('val_idxs ', val_idxs)
-    print("len val_idxs ", len(val_idxs))
-    # print("val_idxs {} num of traj {} ".format(val_idxs, len(val_idxs)))
     return val_mask
 
 

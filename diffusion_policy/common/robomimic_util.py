@@ -1,41 +1,13 @@
 import numpy as np
 import copy
-import os
 
 import h5py
 import robomimic.utils.obs_utils as ObsUtils
 import robomimic.utils.file_utils as FileUtils
 import robomimic.utils.env_utils as EnvUtils
 from scipy.spatial.transform import Rotation
-import robosuite.utils.transform_utils as trans
-from diffusion_policy.model.common.rotation_transformer import RotationTransformer
+
 from robomimic.config import config_factory
-
-
-def get_robomimic_model_file(env_name):
-
-    xml_base_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "env", "robomimic", "xml_files"
-    )    
-    model_file = None
-    
-    if 'Libero' in env_name:
-        model_file = None
-    elif "Nut" in env_name:
-        model_path = os.path.join(xml_base_path, "square_model_file_1.4.xml")
-        with open(model_path, 'r') as f:
-            model_file = f.read()
-    elif "Transport" in env_name:
-        model_path = os.path.join(xml_base_path, "transport_model_file_1.4.xml")
-        with open(model_path, 'r') as f:
-            model_file = f.read()
-    elif "ToolHang" in env_name:
-        model_path = os.path.join(xml_base_path, "tool_hang_model_file_1.4.xml")
-        with open(model_path, 'r') as f:
-            model_file = f.read()
-    return model_file
-
 
 
 class RobomimicAbsoluteActionConverter:
@@ -48,8 +20,6 @@ class RobomimicAbsoluteActionConverter:
         ObsUtils.initialize_obs_utils_with_config(config)
 
         env_meta = FileUtils.get_env_metadata_from_dataset(dataset_path)
-        # env_meta['env_kwargs']['controller_configs']['kp'] = 50
-        # env_meta['env_kwargs']['controller_configs']['damping_ratio'] = 0.5
         abs_env_meta = copy.deepcopy(env_meta)
         abs_env_meta['env_kwargs']['controller_configs']['control_delta'] = False
 
@@ -72,12 +42,7 @@ class RobomimicAbsoluteActionConverter:
         self.env = env
         self.abs_env = abs_env
         self.file = h5py.File(dataset_path, 'r')
-        
-        # Use helper function to get model file
-        self.model_file = get_robomimic_model_file(env_meta['env_name'])
-        self.tf = RotationTransformer(from_rep='matrix', 
-            to_rep='axis_angle') 
-
+    
     def __len__(self):
         return len(self.file['data'])
 
@@ -95,9 +60,6 @@ class RobomimicAbsoluteActionConverter:
         stacked_actions = actions.reshape(*actions.shape[:-1],-1,7)
 
         env = self.env
-        env.reset()
-        _ = env.reset_to({'states': states[0], 'model': self.model_file})
-
         # generate abs actions
         action_goal_pos = np.zeros(
             stacked_actions.shape[:-1]+(3,), 
@@ -107,15 +69,6 @@ class RobomimicAbsoluteActionConverter:
             dtype=stacked_actions.dtype)
         action_gripper = stacked_actions[...,[-1]]
         for i in range(len(states)):
-            # obs, _, _, _ = env.step(actions[i])
-            # # taken from robot_env.py L#454
-            # for idx, robot in enumerate(env.env.robots):
-            #     # run controller goal generator
-            #     # read pos and ori from robots
-            #     controller = robot.controller
-            #     action_goal_pos[i,idx] = controller.goal_pos
-            #     action_goal_ori[i,idx] = self.tf.forward(controller.goal_ori)
-
             _ = env.reset_to({'states': states[i]})
 
             # taken from robot_env.py L#454
@@ -164,21 +117,20 @@ class RobomimicAbsoluteActionConverter:
         abs_actions = self.convert_actions(states, actions)
 
         # verify
-        # robot0_eef_pos = demo['obs']['robot0_eef_pos'][:]
-        # robot0_eef_quat = demo['obs']['robot0_eef_quat'][:]
+        robot0_eef_pos = demo['obs']['robot0_eef_pos'][:]
+        robot0_eef_quat = demo['obs']['robot0_eef_quat'][:]
 
-        # delta_error_info = self.evaluate_rollout_error(
-        #     env, states, actions, robot0_eef_pos, robot0_eef_quat, 
-        #     metric_skip_steps=eval_skip_steps)
-        # abs_error_info = self.evaluate_rollout_error(
-        #     abs_env, states, abs_actions, robot0_eef_pos, robot0_eef_quat,
-        #     metric_skip_steps=eval_skip_steps)
+        delta_error_info = self.evaluate_rollout_error(
+            env, states, actions, robot0_eef_pos, robot0_eef_quat, 
+            metric_skip_steps=eval_skip_steps)
+        abs_error_info = self.evaluate_rollout_error(
+            abs_env, states, abs_actions, robot0_eef_pos, robot0_eef_quat,
+            metric_skip_steps=eval_skip_steps)
 
-        # info = {
-        #     'delta_max_error': delta_error_info,
-        #     'abs_max_error': abs_error_info
-        # }
-        info = None
+        info = {
+            'delta_max_error': delta_error_info,
+            'abs_max_error': abs_error_info
+        }
         return abs_actions, info
 
     @staticmethod
