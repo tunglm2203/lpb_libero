@@ -25,19 +25,19 @@ while True:
     # }
     
     # folding short
-    # obs = {
-    #     'high_images': np.random.randint(0, 255, (1, 2, 3, 480, 640), dtype=np.uint8),
-    #     'wrist_left_images': np.random.randint(0, 255, (1, 2, 3, 480, 640), dtype=np.uint8),
-    #     'wrist_right_images': np.random.randint(0, 255, (1, 2, 3, 480, 640), dtype=np.uint8),
-    #     'states': np.zeros((1, 2, 14), dtype=np.float32)
-    # }
-
-    # placing drawer
     obs = {
         'high_images': np.random.randint(0, 255, (1, 2, 3, 480, 640), dtype=np.uint8),
-        'wrist_images': np.random.randint(0, 255, (1, 2, 3, 480, 640), dtype=np.uint8),
-        'states': np.zeros((1, 2, 13), dtype=np.float32)
+        'wrist_left_images': np.random.randint(0, 255, (1, 2, 3, 480, 640), dtype=np.uint8),
+        'wrist_right_images': np.random.randint(0, 255, (1, 2, 3, 480, 640), dtype=np.uint8),
+        'states': np.zeros((1, 2, 14), dtype=np.float32)
     }
+
+    # placing drawer
+    # obs = {
+    #     'high_images': np.random.randint(0, 255, (1, 2, 3, 480, 640), dtype=np.uint8),
+    #     'wrist_images': np.random.randint(0, 255, (1, 2, 3, 480, 640), dtype=np.uint8),
+    #     'states': np.zeros((1, 2, 13), dtype=np.float32)
+    # }
     # action = client.predict_action_chunk(obs)
     action = client.get_action(obs)
     print(action.keys())

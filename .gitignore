@@ -9,4 +9,5 @@ eval_logs
 cache
 debugs
 *.png
-*.jpg
+*.
+*.ckpt
